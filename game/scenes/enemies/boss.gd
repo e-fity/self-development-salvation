@@ -169,16 +169,15 @@ func _choose_attack(player: Node) -> void:
 func _move_combo(player: Node) -> void:
 	await _telegraph(
 		combo_telegraph * float(windup_scale[phase - 1]),
-		Vector2(_facing * combo_range * 0.5, -110.0),
-		Vector2(combo_range, 220.0)
+		_combo_center(),
+		_combo_size()
 	)
 	for i in combo_hits:
 		if _dead:
 			return
 		# 判定盒在身前（跟着朝向走），比「按距离」更像真的在砍
-		var center := global_position + Vector2(_facing * combo_range * 0.5, -110.0)
 		_flash_slash()
-		if _hits_player(center, Vector2(combo_range, 220.0)):
+		if _hits_player(global_position + _combo_center(), _combo_size()):
 			var dir := signi(int(player.global_position.x - global_position.x))
 			player.take_damage(combo_damage, dir)
 			Audio.play("boss_swing", -6.0)
@@ -186,12 +185,21 @@ func _move_combo(player: Node) -> void:
 	await _wait(combo_tail)
 
 
+## 三连斩判定盒：宽 combo_range、高 combo_height（JSON 可调，不再写死 220）
+func _combo_size() -> Vector2:
+	return Vector2(combo_range, combo_height)
+
+
+func _combo_center() -> Vector2:
+	return Vector2(_facing * combo_range * 0.5, -combo_height * 0.5)
+
+
 func _move_jump(player: Node) -> void:
 	var lead_x: float = player.global_position.x
 	await _telegraph(
 		jump_telegraph * float(windup_scale[phase - 1]),
-		Vector2(lead_x - global_position.x, -90.0),
-		Vector2(jump_range * 2.0, 180.0)
+		Vector2(lead_x - global_position.x, -jump_height * 0.5),
+		_jump_size()
 	)
 	if _dead:
 		return
@@ -204,12 +212,20 @@ func _move_jump(player: Node) -> void:
 	_jumping = false
 	velocity.x = 0.0
 
-	# 落点范围伤害：以落点为中心的一块矩形，和跳劈的地面圈大致对齐
-	var center := global_position + Vector2(0.0, -90.0)
-	if _hits_player(center, Vector2(jump_range * 2.0, 180.0)):
+	# 落点范围伤害：以落点为中心的一块矩形，高度同样走跳劈配置
+	if _hits_player(global_position + _jump_center(), _jump_size()):
 		player.take_damage(jump_damage, signi(int(player.global_position.x - global_position.x)))
 		Audio.play("hit_heavy", -4.0)
 	await _wait(jump_tail)
+
+
+## 跳劈落点判定：宽 jump_range*2、高 jump_height
+func _jump_size() -> Vector2:
+	return Vector2(jump_range * 2.0, jump_height)
+
+
+func _jump_center() -> Vector2:
+	return Vector2(0.0, -jump_height * 0.5)
 
 
 ## 挥砍的一道白光，让判定「看得见」
@@ -258,7 +274,7 @@ func _telegraph(seconds: float, aim_center := Vector2.ZERO, aim_size := Vector2.
 	await _wait(seconds)
 	_aim.visible = false
 	_aim_line.visible = false
-	if not _dead:
+	if not _dead and not _invuln:   # 转换期的红色由 _transition 收尾，别被预警提前擦掉
 		modulate = Color.WHITE
 
 
@@ -303,6 +319,9 @@ func take_hit(dmg: float, _dir: int, _force: float) -> void:
 
 
 func _transition(new_phase: int) -> void:
+	# 转换期锁定：不然会出现「一边无敌一边起手」，玩家看到的预警和伤害对不上
+	var was_busy := _busy
+	_busy = true
 	phase = new_phase
 	Audio.play("boss_phase", -2.0)
 	_invuln = true
@@ -313,6 +332,7 @@ func _transition(new_phase: int) -> void:
 		return
 	modulate = Color.WHITE
 	_invuln = false
+	_busy = was_busy
 	_atk_timer = minf(_atk_timer, 0.8)
 
 

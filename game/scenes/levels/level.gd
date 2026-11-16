@@ -5,7 +5,8 @@ const CHECKPOINTS := [600.0, 1600.0]
 
 var respawn_point := Vector2(0, 0)
 var gold := 0
-var start_msec := 0
+## 战斗用时：只累计帧 delta（暂停时 _process 不跑，暂停时间自然不算）
+var elapsed := 0.0
 
 var _taken := 0
 var _boss_seen := false
@@ -14,13 +15,20 @@ var _finished := false
 
 func _ready() -> void:
 	add_to_group("level")
-	start_msec = Time.get_ticks_msec()
 	Audio.start_music()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	tick(delta)
 	_track_checkpoints()
 	_track_boss()
+
+
+## 计时入口单独拆出来，便于测试；结算后停止累计
+func tick(delta: float) -> void:
+	if _finished:
+		return
+	elapsed += delta
 
 
 func _track_checkpoints() -> void:
@@ -54,7 +62,6 @@ func add_gold(amount: int) -> void:
 
 func _show_results() -> void:
 	var player := get_tree().get_first_node_in_group("player")
-	var elapsed := (Time.get_ticks_msec() - start_msec) / 1000.0
 	var stats := {
 		"time": elapsed,
 		"hits": player.hits_taken if player != null else 0,

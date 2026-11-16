@@ -5,6 +5,8 @@ extends Control
 const LEVEL_SCENE := "res://scenes/levels/level.tscn"
 
 var _continue_btn: Button
+var _start_btn: Button
+var _settings_open := false
 
 
 func _ready() -> void:
@@ -62,9 +64,9 @@ func _build() -> void:
 	gap.custom_minimum_size = Vector2(0, 40)
 	box.add_child(gap)
 
-	var start := _make_button("开始游戏", 26, Color(0.184, 0.42, 0.847))
-	start.pressed.connect(_on_start)
-	box.add_child(start)
+	_start_btn = _make_button("开始游戏", 26, Color(0.184, 0.42, 0.847))
+	_start_btn.pressed.connect(_on_start)
+	box.add_child(_start_btn)
 
 	_continue_btn = _make_button("继续", 22, Color(0.16, 0.18, 0.24))
 	_continue_btn.pressed.connect(_on_start)
@@ -87,7 +89,7 @@ func _build() -> void:
 	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(foot)
 
-	start.grab_focus()
+	_start_btn.grab_focus()
 
 
 func _make_button(text: String, font_size: int, color: Color) -> Button:
@@ -129,10 +131,24 @@ func _on_start() -> void:
 
 
 func _on_settings() -> void:
+	# 设置面板是模态的：期间禁用标题按钮，避免 Enter 触到仍有焦点的「开始」
+	_settings_open = true
+	_start_btn.disabled = true
+	_continue_btn.disabled = true
 	var panel := preload("res://scenes/ui/settings_panel.gd").new()
+	panel.closed.connect(_on_settings_closed)
 	add_child(panel)
 
 
+func _on_settings_closed() -> void:
+	_settings_open = false
+	_start_btn.disabled = false
+	_report_state()
+	_start_btn.grab_focus()
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	if _settings_open:
+		return
 	if event.is_action_pressed("ui_accept"):
 		_on_start()

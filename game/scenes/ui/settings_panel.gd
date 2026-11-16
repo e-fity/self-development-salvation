@@ -58,6 +58,7 @@ func _build() -> void:
 	back.custom_minimum_size = Vector2(0, 52)
 	back.pressed.connect(_close)
 	box.add_child(back)
+	back.grab_focus()
 
 
 ## min/max 是滑条范围（0–100 之类），存盘值 = 滑条值 * scale

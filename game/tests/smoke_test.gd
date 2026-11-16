@@ -11,7 +11,8 @@ extends Node2D
 ##   Results  评价档位（S ≥ 90、A ≥ 70、否则 B）
 ##   Player   受伤、无敌帧、数值来源
 ##   Enemy    受击扣血、死亡标记
-##   Boss     血量、阶段转换、转换期无敌
+##   Level    战斗计时按 delta 累计、结算后停止
+##   Boss     血量、阶段转换、转换期无敌与锁定出招、判定盒尺寸
 
 var _passed := 0
 var _failed := 0
@@ -27,6 +28,7 @@ func _ready() -> void:
 	_check_results()
 	await _check_player()
 	await _check_enemy()
+	_check_level()
 	await _check_boss()
 
 	# 留一帧给延迟 free / tween / 计时器收尾，避免退出时报对象泄漏
@@ -234,16 +236,36 @@ func _check_boss() -> void:
 
 	_check_eq(float(boss.max_hp), 600.0, "Boss 血量取自数值表")
 	_check_eq(int(boss.phase), 1, "初始为第一阶段")
+	_check_eq(boss._combo_size(), Vector2(120.0, 160.0), "三连斩判定用 combo_height")
+	_check_eq(boss._jump_size(), Vector2(280.0, 180.0), "跳劈判定用 jump_height")
 
 	# 600 → 350 = 58.3%，越过 66% 阈值 → 进二阶段并无敌
 	boss.take_hit(250.0, 1, 0.0)
 	_check_eq(float(boss.hp), 350.0, "Boss 受伤扣血")
 	_check_eq(int(boss.phase), 2, "血量过阈值进二阶段")
+	_check(boss._busy, "阶段转换期间锁住出招")
 	boss.take_hit(50.0, 1, 0.0)
 	_check_eq(float(boss.hp), 350.0, "阶段转换无敌期不吃伤害")
 
+	await get_tree().create_timer(1.1, true, false, true).timeout
+	_check(not boss._invuln, "转换结束后解除无敌")
+	_check(not boss._busy, "转换结束后解除出招锁")
+
 	boss.queue_free()
 	await get_tree().process_frame
+
+
+# ---------------- Level ----------------
+func _check_level() -> void:
+	print("[Level] 战斗计时")
+	var level = load("res://scenes/levels/level.gd").new()
+	level.tick(0.25)
+	level.tick(0.25)
+	_check(is_equal_approx(level.elapsed, 0.5), "计时按帧 delta 累计（不受暂停墙钟影响）")
+	level.set("_finished", true)
+	level.tick(10.0)
+	_check(is_equal_approx(level.elapsed, 0.5), "结算后停止累计")
+	level.free()
 
 
 # ---------------- 测试辅助 ----------------
