@@ -13,6 +13,7 @@ extends Node2D
 ##   Enemy    受击扣血、死亡标记
 ##   Level    战斗计时按 delta 累计、结算后停止
 ##   Boss     血量、阶段转换、转换期无敌与锁定出招、判定盒尺寸
+##   Audio    BGM 走流内循环，不靠 finished 重播
 
 var _passed := 0
 var _failed := 0
@@ -30,6 +31,7 @@ func _ready() -> void:
 	await _check_enemy()
 	_check_level()
 	await _check_boss()
+	_check_audio()
 
 	# 留一帧给延迟 free / tween / 计时器收尾，避免退出时报对象泄漏
 	await get_tree().create_timer(1.1, true, false, true).timeout
@@ -204,6 +206,14 @@ func _check_player() -> void:
 	player.take_damage(10.0, 1)
 	_check_eq(float(player.hp), float(player.max_hp) - 20.0, "无敌结束后可再次受伤")
 
+	# P2-2：伤害公式只认目标自己的 defense，缺省按 0，不能藏硬编码的 3
+	var plain := Node2D.new()
+	_check_eq(player.call("_damage_against", 1.0, plain), 12.0, "目标无 defense 时按 0 计算")
+	plain.free()
+	var armed := ArmedTarget.new()
+	_check_eq(player.call("_damage_against", 1.0, armed), 7.0, "目标 defense 参与减伤")
+	armed.free()
+
 	# P2-5：红闪在闪避/橙闪期间到期时，不能把红色残留到动作结束
 	player.set("_hurt_invuln", 0.05)
 	player.call("_start_dodge", 1)
@@ -285,6 +295,23 @@ func _check_level() -> void:
 	level.free()
 
 
+# ---------------- Audio ----------------
+func _check_audio() -> void:
+	print("[Audio] BGM 循环")
+	Audio.start_music()
+	var stream: AudioStream = null
+	if Audio._music != null:
+		stream = Audio._music.stream
+	_check(stream is AudioStreamWAV, "BGM 素材已加载")
+	if stream is AudioStreamWAV:
+		_check_eq(
+				(stream as AudioStreamWAV).loop_mode,
+				AudioStreamWAV.LOOP_FORWARD,
+				"BGM 使用流内前向循环"
+		)
+	Audio.stop_music()
+
+
 # ---------------- 测试辅助 ----------------
 ## 默认表里的每个键，实际数据（JSON 合并结果）都必须同类型同值
 func _same_value(actual: Variant, defaults: Variant) -> bool:
@@ -344,3 +371,10 @@ func _write_text(path: String, text: String) -> void:
 
 func _write_json(path: String, d: Dictionary) -> void:
 	_write_text(path, JSON.stringify(d, "\t"))
+
+
+## 带防御值的假目标，用来验证伤害公式不会自带默认防御
+class ArmedTarget:
+	extends Node2D
+
+	var defense := 5.0

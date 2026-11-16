@@ -13,6 +13,7 @@ var _cache: Dictionary = {}
 var _warned: Dictionary = {}
 var _music: AudioStreamPlayer
 var _music_name := ""
+var _music_looped := false
 
 
 func _ready() -> void:
@@ -86,6 +87,8 @@ func start_music(sound := "rain_loop", volume_db := -16.0) -> void:
 	_music.stream = stream
 	_music.volume_db = volume_db
 	_music_name = sound
+	# 优先用流自身的循环点，避免「播完再 play」在循环处留下一帧空隙
+	_music_looped = _enable_loop(stream)
 	_music.play()
 
 
@@ -95,9 +98,27 @@ func stop_music() -> void:
 
 
 func _on_music_finished() -> void:
-	# wav 没开循环，用「播完再放」来循环，循环点已经做了交叉淡化
+	# 循环点可用时 finished 不会触发；只有不支持循环的流才走到这里兜底重播
+	if _music_looped:
+		return
 	if _music != null and _music.stream != null:
 		_music.play()
+
+
+## 给背景流打开无缝循环；返回是否真的开了循环
+func _enable_loop(stream: AudioStream) -> bool:
+	var wav := stream as AudioStreamWAV
+	if wav != null:
+		if wav.loop_mode == AudioStreamWAV.LOOP_DISABLED:
+			wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+			wav.loop_begin = 0
+			wav.loop_end = 0  # 0 = 循环到样本末尾
+		return true
+	var ogg := stream as AudioStreamOggVorbis
+	if ogg != null:
+		ogg.loop = true
+		return true
+	return false
 
 
 func _stream(sound: String, dir := SFX_DIR) -> AudioStream:

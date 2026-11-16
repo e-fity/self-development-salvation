@@ -8,7 +8,6 @@ const PANEL_W := 600.0
 
 var _value_labels := {}
 var _sliders := {}
-var _checks := {}
 
 
 func _ready() -> void:
@@ -105,10 +104,7 @@ func _slider_row(
 
 func _refresh_label(key: String, stored: float) -> void:
 	var label: Label = _value_labels[key]
-	if key == "shake":
-		label.text = "%d%%" % int(round(stored * 100.0))
-	else:
-		label.text = "%d%%" % int(round(stored * 100.0))
+	label.text = "%d%%" % int(round(stored * 100.0))
 
 
 func _check_row(parent: VBoxContainer, text: String, key: String) -> void:
@@ -119,7 +115,6 @@ func _check_row(parent: VBoxContainer, text: String, key: String) -> void:
 		Save.set_setting(key, on)
 		Settings.apply())
 	parent.add_child(check)
-	_checks[key] = check
 
 
 func _close() -> void:

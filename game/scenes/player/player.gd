@@ -520,6 +520,14 @@ func _end_action() -> void:
 	_apply_visual_alpha()
 
 
+## 对单个目标的伤害：防御只取自目标自身，缺省按 0，公式里不再藏第二份默认值
+func _damage_against(mult: float, target: Object) -> float:
+	var defense := 0.0
+	if "defense" in target:
+		defense = float(target.defense)
+	return maxf(1.0, attack_power * mult - defense)
+
+
 func _do_hit(mult: float, knockback: float, offset: Vector2) -> void:
 	var space := get_world_2d().direct_space_state
 	var query := PhysicsShapeQueryParameters2D.new()
@@ -541,10 +549,8 @@ func _do_hit(mult: float, knockback: float, offset: Vector2) -> void:
 			continue
 		_hit_ids.append(body.get_instance_id())
 
-		var target_defense := 3.0
-		if "defense" in body:
-			target_defense = float(body.defense)
-		var dmg := maxf(1.0, attack_power * mult - target_defense)
+		# 防御只认目标自己的数值；没有该字段就按 0 算，不在公式里藏第二份默认值
+		var dmg := _damage_against(mult, body)
 		body.take_hit(dmg, _facing, knockback)
 		Fx.damage_number(body.global_position + Vector2(0, -215), dmg)
 		hit_any = true
