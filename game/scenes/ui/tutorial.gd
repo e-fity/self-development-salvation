@@ -4,6 +4,12 @@ extends CanvasLayer
 
 const HOLD := 3.0
 
+## 提示触发位置：跟关卡布局绑定，挪关卡时改这里（Boss 提示改用 boss.json 的 engage_range）
+const HINT_MOVE_X := 120.0
+const HINT_ATTACK_X := 300.0
+const HINT_DODGE_X := 520.0
+const HINT_SKILL_X := 1350.0
+
 var _panel: PanelContainer
 var _label: Label
 var _queue: Array[Dictionary] = []
@@ -53,19 +59,20 @@ func _process(_delta: float) -> void:
 		return
 
 	var x: float = _player.global_position.x
-	if x > 120.0:
+	if x > HINT_MOVE_X:
 		_hint("move", "A / D 移动 · 空格 跳跃（可二段跳）")
-	if x > 300.0:
+	if x > HINT_ATTACK_X:
 		_hint("attack", "鼠标左键 连击 · 空中还能再打两下")
-	if x > 520.0:
+	if x > HINT_DODGE_X:
 		_hint("dodge", "Shift 闪避 · 前 3 帧无敌")
-	if x > 1350.0:
+	if x > HINT_SKILL_X:
 		_hint("skills", "K 橙闪突进 · 冲刺帧带无敌，可以穿过攻击")
 	if int(_player.get("hits_taken")) > 0:
 		_hint("hurt", "被击中后有一小段无敌时间——先拉开，再反击")
 	# Boss 提示按距离触发，不能按「场景里有没有 Boss」——Boss 一开局就在场景里
 	var boss := get_tree().get_first_node_in_group("boss")
-	if boss != null and absf(boss.global_position.x - x) < 520.0:
+	var engage := float(Data.num(Data.boss, "engage_range", 520.0))
+	if boss != null and absf(boss.global_position.x - x) < engage:
 		_hint("boss", "夜巡出招前会亮红光，那就是可以闪的时机")
 
 

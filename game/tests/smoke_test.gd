@@ -292,6 +292,23 @@ func _check_level() -> void:
 	level.set("_finished", true)
 	level.tick(10.0)
 	_check(is_equal_approx(level.elapsed, 0.5), "结算后停止累计")
+
+	# P2-10：检查点坐标从场景里的 Checkpoint* 节点读取，而不是脚本里另抄一份
+	var probe = load("res://scenes/levels/level.gd").new()
+	var cp1 := Node2D.new()
+	cp1.name = "Checkpoint1"
+	cp1.position = Vector2(600, 0)
+	probe.add_child(cp1)
+	var cp2 := Node2D.new()
+	cp2.name = "Checkpoint2"
+	cp2.position = Vector2(1600, 0)
+	probe.add_child(cp2)
+	probe.call("_collect_checkpoints")
+	_check_eq(probe.checkpoints.size(), 2, "检查点数量取自场景节点")
+	_check_eq(probe.checkpoints[0], 600.0, "检查点按 x 排序")
+	_check_eq(probe.checkpoints[1], 1600.0, "第二个检查点位置取自场景")
+	probe.free()
+
 	level.free()
 
 

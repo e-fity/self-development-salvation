@@ -40,12 +40,9 @@ func _resolve_paths() -> void:
 	_bak_path = _dir + BAK_NAME
 
 
+## 测试与调试用：把存档路径转成绝对路径；游戏逻辑只用 _save_path 等内部路径
 func abs_save_path() -> String:
 	return ProjectSettings.globalize_path(_save_path)
-
-
-func abs_tmp_path() -> String:
-	return ProjectSettings.globalize_path(_tmp_path)
 
 
 func abs_bak_path() -> String:

@@ -81,12 +81,7 @@ pause={
 2d_physics/layer_5="destructible"
 2d_physics/layer_6="boundary"
 
-[physics]
-
-3d/physics_engine="Jolt Physics"
-
 [rendering]
 
-rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"

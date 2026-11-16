@@ -83,7 +83,7 @@ $env:SALVATION_SAVE_DIR = $save                                # 隔离存档，
 echo $LASTEXITCODE    # 0 = 全过，1 = 有失败项
 ```
 
-当前基线：**69 项断言全部通过，退出码 0**。测试会先删掉并重建 `SALVATION_SAVE_DIR` 目录，顺带验证「目录不存在时自动创建」；若该路径不可写，Save 组会失败（属环境问题）。
+当前基线：**72 项断言全部通过，退出码 0**。测试会先删掉并重建 `SALVATION_SAVE_DIR` 目录，顺带验证「目录不存在时自动创建」；若该路径不可写，Save 组会失败（属环境问题）。
 
 一键门禁（静态检查 + 可选 Godot 冒烟）：
 
@@ -139,4 +139,5 @@ python tools/assets/make_sfx.py            # 重新生成 game/audio 下的占�
 - 技能 L / I 未实现：`project.godot` 的未用动作与教学文案已同步移除（P2-4）；手柄、`strings.csv`、`export_presets.cfg` 均未落地。
 - 存档已实现 `save.bak` 回滚与目录自动创建；`fsync` 未实现（Godot `FileAccess` 不暴露），验收口径为「主档或 bak 至少一份可用」。
 - 角色/敌人/UI 均为代码绘制的灰盒，无 AnimatedSprite2D 与动画资源。
+- `audio/sfx/hit_player.wav` 为素材预留，当前没有代码播放；其余音效均已接入。
 - 其余仍待排期的问题（P2/P3）见[代码审查报告](docs/代码审查报告.md) §7。

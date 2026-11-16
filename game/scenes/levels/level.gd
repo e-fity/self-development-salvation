@@ -1,7 +1,8 @@
 extends Node2D
-## 关卡：检查点（x=600 / x=1600 Boss 门前）、金币、结算
+## 关卡：检查点（节点位置即逻辑位置）、金币、结算
 
-const CHECKPOINTS := [600.0, 1600.0]
+## 检查点 x 坐标，_ready 时从场景里的 Checkpoint* 节点读取并排序
+var checkpoints: Array[float] = []
 
 var respawn_point := Vector2(0, 0)
 var gold := 0
@@ -15,7 +16,19 @@ var _finished := false
 
 func _ready() -> void:
 	add_to_group("level")
+	_collect_checkpoints()
 	Audio.start_music()
+
+
+## 视觉柱与判定点共用同一个节点位置，场景里挪柱子不必再改脚本
+func _collect_checkpoints() -> void:
+	checkpoints.clear()
+	for child in get_children():
+		if child is Node2D and String(child.name).begins_with("Checkpoint"):
+			checkpoints.append((child as Node2D).position.x)
+	checkpoints.sort()
+	if checkpoints.is_empty():
+		push_warning("[关卡] 没有 Checkpoint 节点，检查点系统停用")
 
 
 func _process(delta: float) -> void:
@@ -36,11 +49,11 @@ func _track_checkpoints() -> void:
 	if player == null:
 		return
 
-	while _taken < CHECKPOINTS.size() and player.global_position.x >= CHECKPOINTS[_taken]:
-		respawn_point = Vector2(CHECKPOINTS[_taken], 0.0)
+	while _taken < checkpoints.size() and player.global_position.x >= checkpoints[_taken]:
+		respawn_point = Vector2(checkpoints[_taken], 0.0)
 		_taken += 1
 		print("[检查点] 记录 x=%.0f" % respawn_point.x)
-		if _taken >= CHECKPOINTS.size():
+		if _taken >= checkpoints.size():
 			player.hp = player.max_hp
 			print("[神龛] 血已回满")
 
