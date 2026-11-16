@@ -27,9 +27,11 @@
 │  ├─ 工程规范.md
 │  └─ 代码规约.md
 ├─ tools/
+│  ├─ check.py             # 门禁：静态检查 + 可选 Godot 冒烟
 │  ├─ docs/                # PRD / 评审 DOCX 生成、编辑器截图标注
 │  ├─ assets/              # 立绘抠图、占位音效生成
 │  └─ archive/             # 已执行的一次性 codemod（仅留档，不再运行）
+├─ .githooks/pre-commit    # 提交前静态门禁（需 git config core.hooksPath .githooks）
 └─ README.md
 ```
 
@@ -83,7 +85,16 @@ $env:SALVATION_SAVE_DIR = $save                                # 隔离存档，
 echo $LASTEXITCODE    # 0 = 全过，1 = 有失败项
 ```
 
-当前基线：**34 项断言全部通过，退出码 0**。测试脚本会自动创建 `SALVATION_SAVE_DIR` 指向的目录；若该路径不可写，Save 组会失败（属环境问题，见审查报告 P2-11）。
+当前基线：**54 项断言全部通过，退出码 0**。测试会先删掉并重建 `SALVATION_SAVE_DIR` 目录，顺带验证「目录不存在时自动创建」；若该路径不可写，Save 组会失败（属环境问题）。
+
+一键门禁（静态检查 + 可选 Godot 冒烟）：
+
+```powershell
+python tools/check.py          # Python / JSON / 文本卫生 / GDScript 基础检查
+python tools/check.py --godot  # 追加冒烟测试与 level/title 场景
+```
+
+仓库自带 `.githooks/pre-commit`，启用后每次提交自动跑 `--fast`：`git config core.hooksPath .githooks`。
 
 ## 数值调参
 
@@ -94,13 +105,14 @@ echo $LASTEXITCODE    # 0 = 全过，1 = 有失败项
 - `boss.json`：Boss 血量、阶段阈值、三连斩/跳劈/召唤参数
 
 改完 JSON 在调试器里执行 `Data.reload()` 即可热重载；M1 未实现「游戏中按 F5 自动重载」，不要在文档里承诺该快捷键。
-格式固定为 2 空格缩进（见[代码规约](docs/代码规约.md) DATA-1/DATA-2）。字段缺失会回落到 `game/autoload/game_data.gd` 里的 `DEFAULT_*`；**注意默认表与 JSON 已出现漂移**，详见审查报告 P2-1。
+格式固定为 2 空格缩进（见[代码规约](docs/代码规约.md) DATA-1/DATA-2）。字段缺失回落到 `game/autoload/game_data.gd` 里的 `DEFAULT_*`；类型不对（如把 `move` 写成数字）会告警并保留默认值，不会让角色脚本崩。默认表与 JSON 的重叠字段必须同值，冒烟测试会断言（规约 DATA-6）。
 
 ## 存档
 
-- 默认路径：`%APPDATA%\Godot\app_userdata\salvation\save.json`
-- 环境变量 `SALVATION_SAVE_DIR` 可把存档重定向到任意目录（自动化测试/沙箱用）
-- 存档字段：`version / gold / best_grade / best_time / clears / settings{bgm,sfx,shake,numbers,tutorial}`
+- 默认路径：`%APPDATA%\Godot\app_userdata\salvation\save.json`，上一份为 `save.bak`
+- 环境变量 `SALVATION_SAVE_DIR` 可把存档重定向到任意目录（自动化测试/沙箱用）；目录不存在时会自动创建
+- 写档顺序：`save.tmp` → 旧档改名 `save.bak` → tmp 改名主档；任一步失败保留旧档，主档损坏时读 `save.bak`
+- 存档字段：`version / gold / best_grade / best_time / clears / settings{bgm,sfx,shake,numbers,tutorial}`；字段类型异常按默认值丢弃，不会崩
 
 ## 工具链
 
@@ -129,5 +141,5 @@ python tools/assets/make_sfx.py            # 重新生成 game/audio 下的占�
 - 技能 L / I 只有输入映射与教学文案，没有实现；手柄、`strings.csv`、`export_presets.cfg` 均未落地。
 - Boss 的 `combo.height` / `jump.height` 配置未生效（判定盒高度硬编码），见审查报告 P1-4。
 - 关卡计时用墙钟，暂停时间会计入成绩，见审查报告 P1-5。
-- 存档原子写入缺少 `.bak` 回滚与 fsync，见审查报告 P1-1。
+- 存档已实现 `save.bak` 回滚与目录自动创建；`fsync` 未实现（Godot `FileAccess` 不暴露），验收口径为「主档或 bak 至少一份可用」。
 - 角色/敌人/UI 均为代码绘制的灰盒，无 AnimatedSprite2D 与动画资源。
