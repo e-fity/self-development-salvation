@@ -1,0 +1,37 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scenes/player/player.gd" id="1_player"]
+[ext_resource type="Script" path="res://scenes/player/camera_shake.gd" id="2_cam"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(60, 180)
+
+[node name="Player" type="CharacterBody2D" groups=["player"]]
+collision_layer = 1
+collision_mask = 32
+script = ExtResource("1_player")
+
+[node name="Visual" type="Node2D" parent="."]
+
+[node name="Body" type="Polygon2D" parent="Visual"]
+color = Color(0.184314, 0.419608, 0.847059, 1)
+polygon = PackedVector2Array(-30, -180, 30, -180, 30, 0, -30, 0)
+
+[node name="Eye" type="Polygon2D" parent="Visual"]
+color = Color(0.941176, 0.541176, 0.141176, 1)
+polygon = PackedVector2Array(10, -156, 26, -156, 26, -140, 10, -140)
+
+[node name="Slash" type="Polygon2D" parent="Visual"]
+visible = false
+color = Color(0.75, 0.95, 1, 0.85)
+polygon = PackedVector2Array(40, -118, 150, -104, 150, -84, 40, -98)
+
+[node name="Collision" type="CollisionShape2D" parent="."]
+position = Vector2(0, -90)
+shape = SubResource("RectangleShape2D_body")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(0, -90)
+position_smoothing_enabled = true
+position_smoothing_speed = 8.0
+script = ExtResource("2_cam")

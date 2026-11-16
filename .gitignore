@@ -1,0 +1,20 @@
+# ---- 备份与临时产物 ----
+_backup/
+*.zip
+*.tmp
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ---- Godot 缓存 / 导出（game/.gitignore 另有工程内规则） ----
+game/.godot/
+.godot/
+game/build/
+*.pck
+
+# ---- 文档工具临时文件 ----
+~$*.docx
+~$*.xlsx

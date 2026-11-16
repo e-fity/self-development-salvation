@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "_comment": "Boss「夜巡」数值表。phases 是进入下一阶段的血量比例（0.66 = 66%）。",
+  "name": "夜巡",
+  "max_hp": 600.0,
+  "defense": 3.0,
+  "gold": 50,
+  "engage_range": 520.0,
+  "phases": [
+    0.66,
+    0.33
+  ],
+  "phase_interval": [
+    2.0,
+    1.6,
+    1.1
+  ],
+  "windup_scale": [
+    1.0,
+    1.0,
+    0.8
+  ],
+  "transition_seconds": 1.0,
+  "combo": {
+    "telegraph": 0.6,
+    "hits": 3,
+    "damage": 10.0,
+    "range": 120.0,
+    "height": 160.0,
+    "gap": 0.28,
+    "tail": 0.2
+  },
+  "jump": {
+    "telegraph": 0.5,
+    "air_time": 0.45,
+    "velocity_y": -700.0,
+    "speed_x": 620.0,
+    "damage": 14.0,
+    "range": 140.0,
+    "height": 180.0,
+    "tail": 0.3
+  },
+  "summon": {
+    "telegraph": 1.0,
+    "offsets": [
+      -280,
+      280
+    ],
+    "tail": 0.4,
+    "trigger_phase": 2,
+    "chance": 0.45
+  }
+}

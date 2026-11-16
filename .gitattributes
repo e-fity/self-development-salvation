@@ -1,0 +1,8 @@
+# 统一行尾；二进制文档/素材不做文本转换
+* text=auto eol=lf
+
+*.docx binary
+*.xlsx binary
+*.png binary
+*.wav binary
+*.zip binary

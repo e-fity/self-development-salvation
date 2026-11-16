@@ -1,0 +1,72 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="1_player"]
+[ext_resource type="Script" path="res://scenes/levels/level.gd" id="2_level"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/enemy_dummy.tscn" id="3_dummy"]
+[ext_resource type="Script" path="res://scenes/ui/debug_panel.gd" id="4_debug"]
+[ext_resource type="Script" path="res://scenes/ui/hud.gd" id="5_hud"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/boss.tscn" id="6_boss"]
+[ext_resource type="Script" path="res://scenes/ui/pause_menu.gd" id="7_pause"]
+[ext_resource type="Script" path="res://scenes/ui/tutorial.gd" id="8_tutorial"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ground"]
+size = Vector2(3600, 40)
+
+[node name="Level" type="Node2D" groups=["level"]]
+script = ExtResource("2_level")
+
+[node name="Ground" type="StaticBody2D" parent="."]
+position = Vector2(1200, 20)
+collision_layer = 32
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape2D" parent="Ground"]
+shape = SubResource("RectangleShape2D_ground")
+
+[node name="Visual" type="Polygon2D" parent="Ground"]
+color = Color(0.137255, 0.156863, 0.203922, 1)
+polygon = PackedVector2Array(-1800, -20, 1800, -20, 1800, 20, -1800, 20)
+
+[node name="Player" parent="." instance=ExtResource("1_player")]
+position = Vector2(0, 0)
+
+[node name="Checkpoint1" type="Node2D" parent="."]
+position = Vector2(600, 0)
+
+[node name="Visual" type="Polygon2D" parent="Checkpoint1"]
+color = Color(0.161, 0.784, 0.784, 0.55)
+polygon = PackedVector2Array(-4, -220, 4, -220, 4, 0, -4, 0)
+
+[node name="Checkpoint2" type="Node2D" parent="."]
+position = Vector2(1600, 0)
+
+[node name="Visual" type="Polygon2D" parent="Checkpoint2"]
+color = Color(1, 0.82, 0.2, 0.55)
+polygon = PackedVector2Array(-4, -240, 4, -240, 4, 0, -4, 0)
+
+[node name="Dummy1" parent="." instance=ExtResource("3_dummy")]
+position = Vector2(420, 0)
+
+[node name="Dummy2" parent="." instance=ExtResource("3_dummy")]
+position = Vector2(640, 0)
+
+[node name="Dummy3" parent="." instance=ExtResource("3_dummy")]
+position = Vector2(860, 0)
+
+[node name="Dummy4" parent="." instance=ExtResource("3_dummy")]
+position = Vector2(1100, 0)
+
+[node name="Boss" parent="." instance=ExtResource("6_boss")]
+position = Vector2(2200, 0)
+
+[node name="DebugPanel" type="CanvasLayer" parent="."]
+script = ExtResource("4_debug")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("5_hud")
+
+[node name="PauseMenu" type="CanvasLayer" parent="."]
+script = ExtResource("7_pause")
+
+[node name="Tutorial" type="CanvasLayer" parent="."]
+script = ExtResource("8_tutorial")

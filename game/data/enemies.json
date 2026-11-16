@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "_comment": "杂兵数值表。melee = 近战木桩（灰盒期唯一敌人）。",
+  "melee": {
+    "name": "木桩",
+    "max_hp": 40.0,
+    "defense": 3.0,
+    "damage": 8.0,
+    "attack_range": 70.0,
+    "attack_height": 200.0,
+    "sight": 420.0,
+    "move_speed": 95.0,
+    "windup": 0.45,
+    "cooldown": 1.6,
+    "gravity": 1400.0,
+    "juggle_gravity": 900.0,
+    "launch_threshold": 120.0,
+    "launch_velocity": -430.0,
+    "gold": 8,
+    "flash_time": 0.08
+  }
+}

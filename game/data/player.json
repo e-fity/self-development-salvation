@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "_comment": "玩家「蓝橙」的数值表。改这里不用动代码；字段缺失会自动回落默认值。",
+  "fps": 15.0,
+  "stats": {
+    "max_hp": 100.0,
+    "attack_power": 12.0
+  },
+  "move": {
+    "speed": 220.0,
+    "jump_velocity": -520.0,
+    "gravity": 1400.0,
+    "max_jumps": 2,
+    "second_jump_scale": 0.8
+  },
+  "combo_grace": 0.45,
+  "attacks": [
+    {
+      "startup": 2,
+      "active": 1,
+      "recover": 3,
+      "mult": 1.0,
+      "knockback": 60.0
+    },
+    {
+      "startup": 2,
+      "active": 1,
+      "recover": 3,
+      "mult": 1.0,
+      "knockback": 60.0
+    },
+    {
+      "startup": 3,
+      "active": 2,
+      "recover": 3,
+      "mult": 1.5,
+      "knockback": 160.0
+    }
+  ],
+  "air_attack": {
+    "startup": 2,
+    "active": 2,
+    "recover": 3,
+    "mult": 1.0,
+    "knockback": 40.0,
+    "max_uses": 2,
+    "land_lock": 0.15
+  },
+  "dodge": {
+    "frames": 5,
+    "invuln_from": 1,
+    "invuln_to": 3,
+    "distance": 160.0,
+    "cooldown": 1.2
+  },
+  "dash": {
+    "frames": 8,
+    "invuln_from": 3,
+    "invuln_to": 5,
+    "distance": 220.0,
+    "move_frames": 5,
+    "cooldown": 6.0,
+    "mult": 1.5,
+    "knockback": 120.0
+  }
+}
