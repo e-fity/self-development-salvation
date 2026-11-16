@@ -86,6 +86,16 @@ func _build() -> void:
 		line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		box.add_child(line)
 
+	# 分项分展示出来，方便知道评级差在哪（也顺手用上 _score 的三个分项）
+	var score := _score()
+	var breakdown := Label.new()
+	breakdown.text = "评分 %d · 时间 %d / 受伤 %d / 连击 %d" % [
+		int(score["total"]), int(score["time"]), int(score["hits"]), int(score["combo"])]
+	breakdown.add_theme_font_size_override("font_size", 18)
+	breakdown.add_theme_color_override("font_color", Color(0.6, 0.66, 0.78))
+	breakdown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(breakdown)
+
 	var spacer := Control.new()
 	spacer.custom_minimum_size = Vector2(0, 18)
 	box.add_child(spacer)

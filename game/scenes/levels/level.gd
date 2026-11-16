@@ -1,6 +1,8 @@
 extends Node2D
 ## 关卡：检查点（节点位置即逻辑位置）、金币、结算
 
+const RESULTS_SCRIPT := preload("res://scenes/ui/results.gd")
+
 ## 检查点 x 坐标，_ready 时从场景里的 Checkpoint* 节点读取并排序
 var checkpoints: Array[float] = []
 
@@ -12,6 +14,9 @@ var elapsed := 0.0
 var _taken := 0
 var _boss_seen := false
 var _finished := false
+## 玩家/Boss 引用缓存：失效（重生、Boss 被清掉）才重新查组
+var _player: Node2D
+var _boss: Node2D
 
 
 func _ready() -> void:
@@ -44,8 +49,14 @@ func tick(delta: float) -> void:
 	elapsed += delta
 
 
+func _find_player() -> Node2D:
+	if not is_instance_valid(_player):
+		_player = get_tree().get_first_node_in_group("player") as Node2D
+	return _player
+
+
 func _track_checkpoints() -> void:
-	var player := get_tree().get_first_node_in_group("player")
+	var player := _find_player()
 	if player == null:
 		return
 
@@ -59,8 +70,9 @@ func _track_checkpoints() -> void:
 
 
 func _track_boss() -> void:
-	var boss := get_tree().get_first_node_in_group("boss")
-	if boss != null:
+	if not is_instance_valid(_boss):
+		_boss = get_tree().get_first_node_in_group("boss") as Node2D
+	if _boss != null:
 		_boss_seen = true
 	elif _boss_seen and not _finished:
 		_finished = true
@@ -74,7 +86,10 @@ func add_gold(amount: int) -> void:
 
 
 func _show_results() -> void:
-	var player := get_tree().get_first_node_in_group("player")
+	# 场景已经切走就不要再建结算页（await 期间可能换场景）
+	if not is_inside_tree():
+		return
+	var player := _find_player()
 	var stats := {
 		"time": elapsed,
 		"hits": player.hits_taken if player != null else 0,
@@ -90,7 +105,7 @@ func _show_results() -> void:
 		if n != null:
 			n.visible = false
 
-	var screen: Node = load("res://scenes/ui/results.gd").new()
+	var screen: Node = RESULTS_SCRIPT.new()
 	add_child(screen)
 	screen.setup(stats)
 	get_tree().paused = true

@@ -36,6 +36,12 @@ var dash_cooldown := 6.0
 var dash_mult := 1.5
 var dash_knockback := 120.0
 
+# 受击/重生反馈（data/player.json 的 feedback 段）
+var hurt_knockback := 240.0
+var hurt_invuln_time := 0.5
+var respawn_delay := 1.5
+var combo_reset_time := 3.0
+
 @export var attack_power := 12.0        # PRD：ATK 初始 12
 @export var hitbox_size := Vector2(100, 130)
 @export var hitbox_offset := Vector2(55, -90)
@@ -155,6 +161,11 @@ func _load_data() -> void:
 
 	fps = Data.num(d, "fps", fps)
 	combo_grace = Data.num(d, "combo_grace", combo_grace)
+	var fb: Dictionary = d.get("feedback", {})
+	hurt_knockback = Data.num(fb, "hurt_knockback", hurt_knockback)
+	hurt_invuln_time = Data.num(fb, "hurt_invuln", hurt_invuln_time)
+	respawn_delay = Data.num(fb, "respawn_delay", respawn_delay)
+	combo_reset_time = Data.num(fb, "combo_reset", combo_reset_time)
 	attacks = d.get("attacks", attacks)
 	air_attack = d.get("air_attack", air_attack)
 	max_air_attacks = int(Data.num(air_attack, "max_uses", float(max_air_attacks)))
@@ -245,9 +256,9 @@ func take_damage(amount: float, from_dir: int) -> void:
 		return
 	hp = maxf(0.0, hp - amount)
 	hits_taken += 1
-	_hurt_invuln = 0.5
+	_hurt_invuln = hurt_invuln_time
 	# 击退不能直接写 velocity.x——_process_move 每帧都会覆盖它，会变成 0
-	_knock = from_dir * 240.0
+	_knock = from_dir * hurt_knockback
 	Fx.impact(amount, false)   # 挨打也要有停顿和震屏，音效下面单独播
 	Audio.play_varied("hurt", -2.0)
 	Fx.damage_number(global_position + Vector2(0, -230), amount, Color(1.0, 0.42, 0.36))
@@ -268,8 +279,8 @@ func _die() -> void:
 	state = State.DEAD
 	velocity = Vector2.ZERO
 	visual.modulate = Color(1, 1, 1, 0.25)
-	print("[玩家] 倒下，1.5 秒后从检查点重生")
-	await get_tree().create_timer(1.5).timeout
+	print("[玩家] 倒下，%.1f 秒后从检查点重生" % respawn_delay)
+	await get_tree().create_timer(respawn_delay).timeout
 	_respawn()
 
 
@@ -560,5 +571,5 @@ func _do_hit(mult: float, knockback: float, offset: Vector2) -> void:
 		# 连击计数：每命中一个目标 +1，3 秒内不断
 		combo += 1
 		max_combo = maxi(max_combo, combo)
-		_combo_timer = 3.0
+		_combo_timer = combo_reset_time
 		Fx.impact(biggest)

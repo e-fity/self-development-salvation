@@ -33,8 +33,8 @@ var _lean := 0.0
 var _walk_vx := 0.0
 var _slash: Line2D
 ## 判定用的形状与查询对象只建一次；attack_range/height 变了才改 size
-var _hit_shape: RectangleShape2D
-var _hit_query: PhysicsShapeQueryParameters2D
+var _rect := RectQuery.new()
+var _player: Node2D
 
 @onready var visual: Node2D = $Visual
 @onready var flash: Polygon2D = $Visual/Flash
@@ -57,14 +57,10 @@ func _ready() -> void:
 	_slash.visible = false
 	visual.add_child(_slash)
 
-	_hit_shape = RectangleShape2D.new()
-	_hit_shape.size = Vector2(attack_range, attack_height)
-	_hit_query = PhysicsShapeQueryParameters2D.new()
-	_hit_query.shape = _hit_shape
-	_hit_query.collision_mask = 1          # 只查玩家层
-	_hit_query.collide_with_areas = false
+	_rect.shape.size = Vector2(attack_range, attack_height)
 
 
+## 字段名对照：JSON 的 sight → sight_range、windup → windup_time（多带单位，读代码时更清楚）
 func _load_data() -> void:
 	var d: Dictionary = Data.enemies.get("melee", {})
 	max_hp = Data.num(d, "max_hp", max_hp)
@@ -132,9 +128,16 @@ func _physics_process(delta: float) -> void:
 	_update_attack(delta)
 
 
+## 玩家引用缓存：失踪（重生/换场景）才重新查组，避免每物理帧扫树
+func _find_player() -> Node2D:
+	if not is_instance_valid(_player):
+		_player = get_tree().get_first_node_in_group("player") as Node2D
+	return _player
+
+
 ## 前摇 0.45s（变红）→ 还在范围内就造成伤害
 func _update_attack(delta: float) -> void:
-	var player := get_tree().get_first_node_in_group("player")
+	var player := _find_player()
 	if player == null:
 		return
 
@@ -180,19 +183,11 @@ func _update_attack(delta: float) -> void:
 ## 用「盒子能不能盖住玩家」代替「中心距 < 半径」，两种体型之间的手感才一致
 ## 形状/查询对象在 _ready 预建并复用，不在每个物理帧 new
 func _hits_player() -> bool:
-	var size := Vector2(attack_range, attack_height)
-	if _hit_shape.size != size:
-		_hit_shape.size = size
-	_hit_query.shape = _hit_shape
-
+	var center := global_position + Vector2(
+		_facing * (30.0 + attack_range * 0.5), -attack_height * 0.5)
 	var space := get_world_2d().direct_space_state
-	_hit_query.transform = Transform2D(
-		0.0,
-		global_position + Vector2(_facing * (30.0 + attack_range * 0.5), -attack_height * 0.5)
-	)
-	for hit in space.intersect_shape(_hit_query, 4):
-		var body = hit.get("collider")
-		if body != null and body.has_method("take_damage"):
+	for body in _rect.bodies(space, center, Vector2(attack_range, attack_height), 1, 4):
+		if body.has_method("take_damage"):
 			return true
 	return false
 

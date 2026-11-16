@@ -54,6 +54,9 @@ var _slash: Polygon2D
 var _blade: Polygon2D
 var _aim: Polygon2D
 var _aim_line: Line2D
+## 招式判定共用一份矩形查询对象，不在每次出招时 new
+var _rect := RectQuery.new()
+var _player: Node2D
 
 @onready var visual: Node2D = $Visual
 @onready var flash_poly: Polygon2D = $Visual/Flash
@@ -119,7 +122,7 @@ func _physics_process(delta: float) -> void:
 	if _dead or _busy:
 		return
 
-	var player := get_tree().get_first_node_in_group("player")
+	var player := _find_player()
 	if player == null:
 		return
 
@@ -138,6 +141,13 @@ func _physics_process(delta: float) -> void:
 	if _atk_timer <= 0.0:
 		_busy = true
 		_choose_attack(player)
+
+
+## 玩家引用缓存：失踪（重生/换场景）才重新查组，避免每物理帧扫树
+func _find_player() -> Node2D:
+	if not is_instance_valid(_player):
+		_player = get_tree().get_first_node_in_group("player") as Node2D
+	return _player
 
 
 func _face(player: Node) -> void:
@@ -238,16 +248,8 @@ func _flash_slash() -> void:
 ## 矩形判定盒里有没有玩家（用物理查询，和玩家的判定方式一致）
 func _hits_player(center: Vector2, size: Vector2) -> bool:
 	var space := get_world_2d().direct_space_state
-	var shape := RectangleShape2D.new()
-	shape.size = size
-	var query := PhysicsShapeQueryParameters2D.new()
-	query.shape = shape
-	query.transform = Transform2D(0.0, center)
-	query.collision_mask = 1          # 只查玩家层
-	query.collide_with_areas = false
-	for hit in space.intersect_shape(query, 4):
-		var body = hit.get("collider")
-		if body != null and body.has_method("take_damage"):
+	for body in _rect.bodies(space, center, size, 1, 4):
+		if body.has_method("take_damage"):
 			return true
 	return false
 

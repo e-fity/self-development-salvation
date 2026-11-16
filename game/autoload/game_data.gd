@@ -19,6 +19,8 @@ const DEFAULT_PLAYER := {
 	"move": {"speed": 220.0, "jump_velocity": -520.0, "gravity": 1400.0,
 		"max_jumps": 2, "second_jump_scale": 0.8},
 	"combo_grace": 0.45,
+	"feedback": {"hurt_knockback": 240.0, "hurt_invuln": 0.5,
+		"respawn_delay": 1.5, "combo_reset": 3.0},
 	"attacks": [
 		{"startup": 2, "active": 1, "recover": 3, "mult": 1.0, "knockback": 60.0},
 		{"startup": 2, "active": 1, "recover": 3, "mult": 1.0, "knockback": 60.0},

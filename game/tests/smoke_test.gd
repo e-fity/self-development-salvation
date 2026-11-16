@@ -194,6 +194,8 @@ func _check_player() -> void:
 			"max_hp 取自数值表"
 	)
 	_check_eq(float(player.hp), float(player.max_hp), "初始满血")
+	_check_eq(float(player.hurt_knockback), 240.0, "feedback 击退取自 player.json")
+	_check_eq(float(player.combo_reset_time), 3.0, "feedback 连击窗口取自 player.json")
 
 	player.take_damage(10.0, 1)
 	_check_eq(float(player.hp), float(player.max_hp) - 10.0, "受伤扣血")
@@ -235,15 +237,14 @@ func _check_enemy() -> void:
 	await get_tree().physics_frame
 
 	var full: float = enemy.max_hp
-	var shape_before = enemy.get("_hit_shape")
-	var query_before = enemy.get("_hit_query")
+	var rect_before = enemy.get("_rect")
 	enemy.call("_hits_player")
 	enemy.call("_hits_player")
 	_check(
-			enemy.get("_hit_shape") == shape_before and enemy.get("_hit_query") == query_before,
-			"判定形状/查询对象复用，不逐帧重建"
+			enemy.get("_rect") == rect_before,
+			"判定查询对象复用，不逐帧重建"
 	)
-	_check_eq(shape_before.size, Vector2(70.0, 200.0), "判定盒尺寸取 enemies.json")
+	_check_eq(rect_before.shape.size, Vector2(70.0, 200.0), "判定盒尺寸取 enemies.json")
 	enemy.take_hit(10.0, 1, 0.0)
 	_check_eq(float(enemy.hp), full - 10.0, "木桩受击扣血")
 	enemy.take_hit(9999.0, 1, 9999.0)

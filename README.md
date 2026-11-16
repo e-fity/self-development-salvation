@@ -14,6 +14,7 @@
 │  ├─ scenes/
 │  │  ├─ player/           # player.tscn + player.gd + camera_shake.gd
 │  │  ├─ enemies/          # enemy_dummy.* / boss.*
+│  │  ├─ combat/           # rect_query.gd（木桩与 Boss 共用的矩形判定）
 │  │  ├─ levels/           # level.tscn + level.gd（唯一关卡）
 │  │  └─ ui/               # title / hud / pause_menu / settings_panel / tutorial / debug_panel / results
 │  ├─ art/player/          # 正式立绘 idle.png（由 tools 生成）与 source 原图
@@ -83,7 +84,7 @@ $env:SALVATION_SAVE_DIR = $save                                # 隔离存档，
 echo $LASTEXITCODE    # 0 = 全过，1 = 有失败项
 ```
 
-当前基线：**72 项断言全部通过，退出码 0**。测试会先删掉并重建 `SALVATION_SAVE_DIR` 目录，顺带验证「目录不存在时自动创建」；若该路径不可写，Save 组会失败（属环境问题）。
+当前基线：**74 项断言全部通过，退出码 0**。测试会先删掉并重建 `SALVATION_SAVE_DIR` 目录，顺带验证「目录不存在时自动创建」；若该路径不可写，Save 组会失败（属环境问题）。
 
 一键门禁（静态检查 + 可选 Godot 冒烟）：
 

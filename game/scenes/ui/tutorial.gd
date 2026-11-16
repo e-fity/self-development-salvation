@@ -16,6 +16,7 @@ var _queue: Array[Dictionary] = []
 var _busy := false
 var _shown: Dictionary = {}
 var _player: Node
+var _boss: Node
 
 
 func _ready() -> void:
@@ -70,9 +71,10 @@ func _process(_delta: float) -> void:
 	if int(_player.get("hits_taken")) > 0:
 		_hint("hurt", "被击中后有一小段无敌时间——先拉开，再反击")
 	# Boss 提示按距离触发，不能按「场景里有没有 Boss」——Boss 一开局就在场景里
-	var boss := get_tree().get_first_node_in_group("boss")
+	if _boss == null:
+		_boss = get_tree().get_first_node_in_group("boss")
 	var engage := float(Data.num(Data.boss, "engage_range", 520.0))
-	if boss != null and absf(boss.global_position.x - x) < engage:
+	if _boss != null and absf(_boss.global_position.x - x) < engage:
 		_hint("boss", "夜巡出招前会亮红光，那就是可以闪的时机")
 
 

@@ -3,6 +3,9 @@ extends Control
 ## 继续按钮只在有通关记录时可用（读 Save.data）
 
 const LEVEL_SCENE := "res://scenes/levels/level.tscn"
+const SETTINGS_PANEL := preload("res://scenes/ui/settings_panel.gd")
+## 版本号只在 project.godot 维护一份，界面直接读
+const FALLBACK_VERSION := "0.2.0"
 
 var _continue_btn: Button
 var _start_btn: Button
@@ -81,7 +84,8 @@ func _build() -> void:
 	box.add_child(quit)
 
 	var foot := Label.new()
-	foot.text = "v0.2 灰盒 M1"
+	var version := str(ProjectSettings.get_setting("application/config/version", FALLBACK_VERSION))
+	foot.text = "v%s 灰盒 M1" % version
 	foot.add_theme_font_size_override("font_size", 16)
 	foot.add_theme_color_override("font_color", Color(0.38, 0.42, 0.52))
 	foot.position = Vector2(0, 1000)
@@ -135,7 +139,7 @@ func _on_settings() -> void:
 	_settings_open = true
 	_start_btn.disabled = true
 	_continue_btn.disabled = true
-	var panel := preload("res://scenes/ui/settings_panel.gd").new()
+	var panel := SETTINGS_PANEL.new()
 	panel.closed.connect(_on_settings_closed)
 	add_child(panel)
 
