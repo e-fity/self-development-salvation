@@ -71,11 +71,9 @@ $godot = "D:\Godot\Godot_v4.7.2-stable_win64_console.exe"
 | 暂停 | Esc |
 | 调试面板显隐 | F1 |
 
-> `project.godot` 里还定义了 L（skill2）、I（ultimate）、E（interact）三个动作，但代码尚未实现，见 `docs/代码审查报告.md`。
-
 ## 自动化测试
 
-冒烟测试不依赖画面与音频设备，覆盖 Data / Save / Results / Player / Enemy / Level / Boss：
+冒烟测试不依赖画面与音频设备，覆盖 Data / Save / Results / Player / Enemy / Level / Boss / Audio：
 
 ```powershell
 $godot = "D:\Godot\Godot_v4.7.2-stable_win64_console.exe"
@@ -138,7 +136,7 @@ python tools/assets/make_sfx.py            # 重新生成 game/audio 下的占�
 
 ## 已知限制
 
-- 技能 L / I 只有输入映射与教学文案，没有实现；手柄、`strings.csv`、`export_presets.cfg` 均未落地。
+- 技能 L / I 未实现：`project.godot` 的未用动作与教学文案已同步移除（P2-4）；手柄、`strings.csv`、`export_presets.cfg` 均未落地。
 - 存档已实现 `save.bak` 回滚与目录自动创建；`fsync` 未实现（Godot `FileAccess` 不暴露），验收口径为「主档或 bak 至少一份可用」。
 - 角色/敌人/UI 均为代码绘制的灰盒，无 AnimatedSprite2D 与动画资源。
 - 其余仍待排期的问题（P2/P3）见[代码审查报告](docs/代码审查报告.md) §7。
