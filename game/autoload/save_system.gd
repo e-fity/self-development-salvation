@@ -1,9 +1,10 @@
 extends Node
 ## 存档系统：默认 user://save.json
-## 三条硬要求（PRD 8.4 / 14-9）：
+## 四条硬要求（PRD 8.4 / 14-9）：
 ##   1. 带 version 字段，预留迁移
-##   2. 原子写入：先写 save.tmp，再替换 save.json，避免写一半损坏
-##   3. 文件损坏 / 缺失时回落到默认值，绝不崩
+##   2. 原子写入：先写 save.tmp，旧档降级为 save.bak，再把 tmp 改名成主档
+##   3. 主档损坏 / 缺失时回落到 save.bak，再不行才回默认值，绝不崩
+##   4. 字段类型异常（如 settings 被写成字符串）按类型校验丢弃，不崩
 ##
 ## 调试便利：设置环境变量 SALVATION_SAVE_DIR 可把存档改到指定目录
 ## （沙箱里 user:// 不可写时，用它把存档指到工程内）。
@@ -11,6 +12,7 @@ extends Node
 const VERSION := 1
 const SAVE_NAME := "save.json"
 const TMP_NAME := "save.tmp"
+const BAK_NAME := "save.bak"
 
 ## 评价高低：S > A > B
 const GRADE_RANK := {"": 0, "B": 1, "A": 2, "S": 3}
@@ -20,6 +22,7 @@ var data: Dictionary = {}
 var _dir := "user://"
 var _save_path := "user://save.json"
 var _tmp_path := "user://save.tmp"
+var _bak_path := "user://save.bak"
 
 
 func _ready() -> void:
@@ -34,6 +37,7 @@ func _resolve_paths() -> void:
 	_dir = override.replace("\\", "/").trim_suffix("/") + "/"
 	_save_path = _dir + SAVE_NAME
 	_tmp_path = _dir + TMP_NAME
+	_bak_path = _dir + BAK_NAME
 
 
 func abs_save_path() -> String:
@@ -42,6 +46,10 @@ func abs_save_path() -> String:
 
 func abs_tmp_path() -> String:
 	return ProjectSettings.globalize_path(_tmp_path)
+
+
+func abs_bak_path() -> String:
+	return ProjectSettings.globalize_path(_bak_path)
 
 
 func default_data() -> Dictionary:
@@ -58,41 +66,82 @@ func default_data() -> Dictionary:
 func load_data() -> Dictionary:
 	data = default_data()
 
-	if not FileAccess.file_exists(_save_path):
-		return data
+	var loaded := _read_json_file(_save_path)
+	if loaded.is_empty():
+		var backup := _read_json_file(_bak_path)
+		if not backup.is_empty():
+			push_warning("[存档] 主档不可用，已从 %s 恢复" % BAK_NAME)
+			loaded = backup
 
-	var f := FileAccess.open(_save_path, FileAccess.READ)
+	if not loaded.is_empty():
+		_apply_loaded(loaded)
+	data = _migrate(data)
+	return data
+
+
+## 读一个 JSON 对象；文件缺失、为空或损坏都返回 {}，由调用方决定回落顺序
+func _read_json_file(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return {}
+	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
-		push_warning("[存档] 打不开存档，使用默认值")
-		return data
+		push_warning("[存档] 打不开 %s" % path)
+		return {}
 	var text := f.get_as_text()
 	f.close()
+	if text.strip_edges().is_empty():
+		return {}
 
 	# 用 JSON.new().parse() 而不是 parse_string()：后者会把「坏文件」当成引擎级错误刷屏，
 	# 而坏档是可预期的情况，静默回落即可
 	var json := JSON.new()
 	var err := json.parse(text)
 	if err != OK or typeof(json.data) != TYPE_DICTIONARY:
-		push_warning("[存档] 文件损坏（第 %d 行），使用默认值" % json.get_error_line())
-		return data
+		push_warning("[存档] %s 损坏（第 %d 行），尝试备份" % [path, json.get_error_line()])
+		return {}
+	return json.data
 
-	# 只认已知字段，旧档里多出来的键不会污染内存
-	var loaded: Dictionary = json.data
+
+func _apply_loaded(loaded: Dictionary) -> void:
+	# 只认已知字段；类型不对的字段丢弃并用默认值，避免把 "abc" 写进 gold 之类
 	for key in data.keys():
-		if loaded.has(key):
-			data[key] = loaded[key]
+		if key == "settings" or not loaded.has(key):
+			continue
+		data[key] = _typed_value(loaded[key], data[key], "顶层字段 %s" % key)
 
-	# settings 是嵌套字典：老档里可能缺键，缺的用默认值补齐，
-	# 否则滑条会读到 null 把自己初始化成 0
-	var loaded_settings: Dictionary = loaded.get("settings", {})
+	if loaded.has("settings"):
+		_apply_settings(loaded["settings"])
+
+
+## settings 是嵌套字典：缺键补默认值，类型不对的键丢弃
+func _apply_settings(incoming: Variant) -> void:
+	if typeof(incoming) != TYPE_DICTIONARY:
+		push_warning("[存档] settings 不是字典（%s），使用默认设置" % type_string(typeof(incoming)))
+		return
+
 	var merged: Dictionary = data["settings"].duplicate()
-	for key in loaded_settings.keys():
-		if merged.has(key):
-			merged[key] = loaded_settings[key]
+	for key in merged.keys():
+		if not incoming.has(key):
+			continue
+		merged[key] = _typed_value(incoming[key], merged[key], "settings.%s" % key)
 	data["settings"] = merged
 
-	data = _migrate(data)
-	return data
+
+## 类型一致才接受；int/float 互认（JSON 数字都是 float）；其余保留默认值并告警
+func _typed_value(value: Variant, base: Variant, label: String) -> Variant:
+	if typeof(value) == typeof(base):
+		return value
+	if _is_number(value) and _is_number(base):
+		if typeof(base) == TYPE_FLOAT:
+			return float(value)
+		if float(value) == floorf(float(value)):
+			return int(value)
+	push_warning("[存档] %s 类型错误（%s），使用默认值" % [label, type_string(typeof(value))])
+	return base
+
+
+func _is_number(v: Variant) -> bool:
+	return typeof(v) == TYPE_FLOAT or typeof(v) == TYPE_INT
 
 
 ## 版本迁移入口：以后加字段时在这里补
@@ -106,8 +155,12 @@ func _migrate(d: Dictionary) -> Dictionary:
 	return d
 
 
+## 写入顺序：tmp → 旧档降级 bak → tmp 改名主档。任一步失败都保留可用的旧档。
 func save_data() -> bool:
 	data["version"] = VERSION
+
+	if not _ensure_dir():
+		return false
 
 	var f := FileAccess.open(_tmp_path, FileAccess.WRITE)
 	if f == null:
@@ -122,12 +175,33 @@ func save_data() -> bool:
 		push_error("[存档] 打不开目录：%s" % _dir)
 		return false
 
-	# Windows 上不能覆盖已存在的文件，先删再改名；中间崩溃只会丢这一份新档，
-	# 不会出现「写了一半的 save.json」
+	# 旧主档先降级成备份：rename 只换名字不写内容，比「删旧档」安全
 	if dir.file_exists(SAVE_NAME):
-		dir.remove(SAVE_NAME)
+		if dir.file_exists(BAK_NAME) and dir.remove(BAK_NAME) != OK:
+			push_error("[存档] 删不掉旧备份，放弃本次写入")
+			dir.remove(TMP_NAME)
+			return false
+		if dir.rename(SAVE_NAME, BAK_NAME) != OK:
+			push_error("[存档] 备份旧档失败，放弃本次写入")
+			dir.remove(TMP_NAME)
+			return false
+
 	if dir.rename(TMP_NAME, SAVE_NAME) != OK:
-		push_error("[存档] 替换存档失败")
+		push_error("[存档] 替换存档失败，尝试回滚")
+		dir.remove(TMP_NAME)
+		if not dir.file_exists(SAVE_NAME) and dir.file_exists(BAK_NAME):
+			dir.rename(BAK_NAME, SAVE_NAME)
+		return false
+	return true
+
+
+## 首次写档时目录可能不存在（例如 SALVATION_SAVE_DIR 指到新目录）
+func _ensure_dir() -> bool:
+	var abs_dir := ProjectSettings.globalize_path(_dir).trim_suffix("/")
+	if DirAccess.dir_exists_absolute(abs_dir):
+		return true
+	if DirAccess.make_dir_recursive_absolute(abs_dir) != OK:
+		push_error("[存档] 建不了目录：%s" % abs_dir)
 		return false
 	return true
 
@@ -148,13 +222,16 @@ func record_run(time_s: float, grade: String, gold_earned: int) -> void:
 	save_data()
 
 
-## 读一个设置项（存档里没有就用默认值）
+## 读一个设置项（存档里没有就用默认值；settings 被写坏也不会崩）
 func get_setting(key: String, fallback: Variant = null) -> Variant:
-	var s: Dictionary = data.get("settings", {})
+	var s: Variant = data.get("settings", {})
+	if typeof(s) != TYPE_DICTIONARY:
+		return fallback
 	return s.get(key, fallback)
 
 ## 只改内存，不写盘——滑条拖动时避免每帧写文件，关面板时统一 save_data()
 func set_setting(key: String, value: Variant) -> void:
-	var s: Dictionary = data.get("settings", {})
+	if typeof(data.get("settings")) != TYPE_DICTIONARY:
+		data["settings"] = default_data()["settings"]
+	var s: Dictionary = data["settings"]
 	s[key] = value
-	data["settings"] = s
