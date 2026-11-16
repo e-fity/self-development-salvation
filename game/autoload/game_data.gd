@@ -12,6 +12,7 @@ var enemies: Dictionary = {}
 var boss: Dictionary = {}
 
 ## 内置默认值：与 data/*.json 初始内容一致，作为兜底
+## 冒烟测试会断言两者的重叠字段同值（规约 DATA-6），改 JSON 时同步改这里
 const DEFAULT_PLAYER := {
 	"fps": 15.0,
 	"stats": {"max_hp": 100.0, "attack_power": 12.0},
@@ -32,9 +33,9 @@ const DEFAULT_PLAYER := {
 
 const DEFAULT_ENEMIES := {
 	"melee": {"name": "木桩", "max_hp": 40.0, "defense": 3.0, "damage": 8.0,
-		"attack_range": 110.0, "attack_height": 140.0, "windup": 0.45, "cooldown": 1.6,
-		"gravity": 1400.0, "juggle_gravity": 900.0, "launch_threshold": 120.0,
-		"launch_velocity": -430.0, "gold": 8, "flash_time": 0.08},
+		"attack_range": 70.0, "attack_height": 200.0, "sight": 420.0, "move_speed": 95.0,
+		"windup": 0.45, "cooldown": 1.6, "gravity": 1400.0, "juggle_gravity": 900.0,
+		"launch_threshold": 120.0, "launch_velocity": -430.0, "gold": 8, "flash_time": 0.08},
 }
 
 const DEFAULT_BOSS := {
@@ -83,16 +84,57 @@ func _load(path: String, fallback: Dictionary) -> Dictionary:
 	return _merge(base, json.data)
 
 
-## 深合并：JSON 里缺的键保留默认值，多出来的键忽略
+## 深合并：JSON 里缺的键保留默认值，多出来的键忽略。
+## 类型不匹配时保留默认值并告警——若让标量覆盖字典，player.gd 里
+## `var mv: Dictionary = ...` 会在运行时类型报错（审查报告 P1-3）。
 func _merge(base: Dictionary, over: Dictionary) -> Dictionary:
 	for key in over.keys():
 		if not base.has(key):
 			continue  # 只认已知字段（_comment 之类不会被读进来）
-		if base[key] is Dictionary and over[key] is Dictionary:
-			base[key] = _merge(base[key], over[key])
-		else:
-			base[key] = over[key]
+		base[key] = _merge_value(base[key], over[key], String(key))
 	return base
+
+
+func _merge_value(base: Variant, over: Variant, path: String) -> Variant:
+	if typeof(base) == TYPE_DICTIONARY:
+		if typeof(over) != TYPE_DICTIONARY:
+			_warn_type_mismatch(path, base, over)
+			return base
+		return _merge(base, over)
+	if typeof(base) == TYPE_ARRAY:
+		if typeof(over) != TYPE_ARRAY:
+			_warn_type_mismatch(path, base, over)
+			return base
+		return _merge_array(base, over, path)
+	if typeof(base) == typeof(over):
+		return over
+	# JSON 的数字统一是 float，默认表里的整数键（max_jumps、gold…）允许整数化
+	if _is_number(base) and _is_number(over):
+		if typeof(base) == TYPE_FLOAT:
+			return float(over)
+		if float(over) == floorf(float(over)):
+			return int(over)
+	_warn_type_mismatch(path, base, over)
+	return base
+
+
+func _merge_array(base: Array, over: Array, path: String) -> Array:
+	if base.size() != over.size():
+		push_warning("[数值] %s 元素数 %d != %d，保留默认值" % [path, over.size(), base.size()])
+		return base
+	var result: Array = base.duplicate(true)
+	for i in result.size():
+		result[i] = _merge_value(result[i], over[i], "%s[%d]" % [path, i])
+	return result
+
+
+func _warn_type_mismatch(path: String, base: Variant, over: Variant) -> void:
+	push_warning("[数值] %s 类型不匹配（期望 %s，实际 %s），保留默认值"
+			% [path, type_string(typeof(base)), type_string(typeof(over))])
+
+
+func _is_number(v: Variant) -> bool:
+	return typeof(v) == TYPE_FLOAT or typeof(v) == TYPE_INT
 
 
 ## 取一个数，类型不对就用兜底值（JSON 里手滑写成字符串时不至于崩）
