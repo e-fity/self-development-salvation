@@ -204,6 +204,14 @@ func _check_player() -> void:
 	player.take_damage(10.0, 1)
 	_check_eq(float(player.hp), float(player.max_hp) - 20.0, "无敌结束后可再次受伤")
 
+	# P2-5：红闪在闪避/橙闪期间到期时，不能把红色残留到动作结束
+	player.set("_hurt_invuln", 0.05)
+	player.call("_start_dodge", 1)
+	await get_tree().create_timer(0.2, true, false, true).timeout
+	_check(is_equal_approx(player.visual.modulate.r, 1.0), "闪避中红闪到期后不再泛红")
+	await get_tree().create_timer(0.3, true, false, true).timeout
+	_check(is_equal_approx(player.visual.modulate.a, 1.0), "闪避结束后恢复不透明")
+
 	player.queue_free()
 	await get_tree().process_frame
 
@@ -217,6 +225,15 @@ func _check_enemy() -> void:
 	await get_tree().physics_frame
 
 	var full: float = enemy.max_hp
+	var shape_before = enemy.get("_hit_shape")
+	var query_before = enemy.get("_hit_query")
+	enemy.call("_hits_player")
+	enemy.call("_hits_player")
+	_check(
+			enemy.get("_hit_shape") == shape_before and enemy.get("_hit_query") == query_before,
+			"判定形状/查询对象复用，不逐帧重建"
+	)
+	_check_eq(shape_before.size, Vector2(70.0, 200.0), "判定盒尺寸取 enemies.json")
 	enemy.take_hit(10.0, 1, 0.0)
 	_check_eq(float(enemy.hp), full - 10.0, "木桩受击扣血")
 	enemy.take_hit(9999.0, 1, 9999.0)

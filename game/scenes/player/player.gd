@@ -184,13 +184,13 @@ func _physics_process(delta: float) -> void:
 	dodge_cd = maxf(0.0, dodge_cd - delta)
 	dash_cd = maxf(0.0, dash_cd - delta)
 
-	# 受击后的短暂无敌 + 闪烁
-	if _hurt_invuln > 0.0:
+	# 受击后的短暂无敌 + 闪烁（死亡动画期间不抢 visual.modulate）
+	if _hurt_invuln > 0.0 and not _dead:
 		_hurt_invuln -= delta
 		var blink := int(_hurt_invuln * 20.0) % 2 == 0
-		visual.modulate = Color(1.0, 0.6, 0.6, 0.45 if blink else 1.0)
-		if _hurt_invuln <= 0.0 and state != State.DODGE and state != State.DASH:
-			visual.modulate = Color.WHITE
+		_apply_visual_alpha(0.45 if blink else 1.0)
+		if _hurt_invuln <= 0.0:
+			_apply_visual_alpha()      # 红闪结束：清掉红色，保留当前状态的透明度
 
 	# 连击计时：3 秒内没有新命中就清零（PRD 4.2）
 	if combo > 0:
@@ -214,6 +214,29 @@ func _physics_process(delta: float) -> void:
 	if is_on_floor() and not _was_on_floor:
 		Audio.play_varied("land", -10.0, 0.05)
 	_was_on_floor = is_on_floor()
+
+
+## 受击闪烁的底色：红闪期间保留红色，其余时候恢复白
+func _flash_tint() -> Color:
+	return Color(1.0, 0.6, 0.6) if _hurt_invuln > 0.0 else Color.WHITE
+
+
+## 当前状态下应有的透明度（闪避/橙闪的无敌段半透明）
+func _state_alpha() -> float:
+	match state:
+		State.DODGE:
+			return 0.5 if invulnerable else 1.0
+		State.DASH:
+			return 0.6 if invulnerable else 1.0
+	return 1.0
+
+
+## 唯一改 visual.modulate 的入口：颜色跟红闪走、透明度跟状态走，
+## 避免「红闪在闪避中到期」时只改 alpha、红色残留到动作结束
+func _apply_visual_alpha(alpha := -1.0) -> void:
+	var c := _flash_tint()
+	c.a = _state_alpha() if alpha < 0.0 else alpha
+	visual.modulate = c
 
 
 # ---------------- 受伤 / 死亡 ----------------
@@ -431,7 +454,7 @@ func _process_dodge(delta: float) -> void:
 	var frame := int(_state_time * fps)
 
 	invulnerable = frame >= dodge_invuln_from - 1 and frame <= dodge_invuln_to - 1
-	visual.modulate.a = 0.5 if invulnerable else 1.0
+	_apply_visual_alpha()
 
 	# 按「剩余距离」推进，保证正好 160px（按时间结束会少算一帧）
 	var speed := dodge_distance / (float(dodge_frames) / fps)
@@ -465,7 +488,7 @@ func _process_dash(delta: float) -> void:
 	var frame := int(_state_time * fps)
 
 	invulnerable = frame >= dash_invuln_from - 1 and frame <= dash_invuln_to - 1
-	visual.modulate.a = 0.6 if invulnerable else 1.0
+	_apply_visual_alpha()
 
 	# 正好推进 220px，推进完立刻停住
 	if _move_remaining > 0.01 and _state_time < float(dash_move_frames + 1) / fps:
@@ -494,7 +517,7 @@ func _end_action() -> void:
 	_state_time = 0.0
 	velocity.x = 0.0
 	slash.visible = false
-	visual.modulate = Color.WHITE
+	_apply_visual_alpha()
 
 
 func _do_hit(mult: float, knockback: float, offset: Vector2) -> void:

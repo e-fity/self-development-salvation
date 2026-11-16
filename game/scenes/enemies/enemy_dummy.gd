@@ -32,6 +32,9 @@ var _facing := 1
 var _lean := 0.0
 var _walk_vx := 0.0
 var _slash: Line2D
+## 判定用的形状与查询对象只建一次；attack_range/height 变了才改 size
+var _hit_shape: RectangleShape2D
+var _hit_query: PhysicsShapeQueryParameters2D
 
 @onready var visual: Node2D = $Visual
 @onready var flash: Polygon2D = $Visual/Flash
@@ -53,6 +56,13 @@ func _ready() -> void:
 	_slash.default_color = Color(1.0, 0.96, 0.92, 0.9)
 	_slash.visible = false
 	visual.add_child(_slash)
+
+	_hit_shape = RectangleShape2D.new()
+	_hit_shape.size = Vector2(attack_range, attack_height)
+	_hit_query = PhysicsShapeQueryParameters2D.new()
+	_hit_query.shape = _hit_shape
+	_hit_query.collision_mask = 1          # 只查玩家层
+	_hit_query.collide_with_areas = false
 
 
 func _load_data() -> void:
@@ -168,19 +178,19 @@ func _update_attack(delta: float) -> void:
 
 ## 身前的矩形判定盒：从身体前缘（半宽 30）往外 attack_range，高 attack_height
 ## 用「盒子能不能盖住玩家」代替「中心距 < 半径」，两种体型之间的手感才一致
+## 形状/查询对象在 _ready 预建并复用，不在每个物理帧 new
 func _hits_player() -> bool:
+	var size := Vector2(attack_range, attack_height)
+	if _hit_shape.size != size:
+		_hit_shape.size = size
+	_hit_query.shape = _hit_shape
+
 	var space := get_world_2d().direct_space_state
-	var shape := RectangleShape2D.new()
-	shape.size = Vector2(attack_range, attack_height)
-	var query := PhysicsShapeQueryParameters2D.new()
-	query.shape = shape
-	query.transform = Transform2D(
+	_hit_query.transform = Transform2D(
 		0.0,
 		global_position + Vector2(_facing * (30.0 + attack_range * 0.5), -attack_height * 0.5)
 	)
-	query.collision_mask = 1          # 只查玩家层
-	query.collide_with_areas = false
-	for hit in space.intersect_shape(query, 4):
+	for hit in space.intersect_shape(_hit_query, 4):
 		var body = hit.get("collider")
 		if body != null and body.has_method("take_damage"):
 			return true

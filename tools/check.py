@@ -182,7 +182,7 @@ def check_godot(c: Checker, binary: Path) -> None:
     )
     tail = "\n".join(out.strip().splitlines()[-6:])
     if code == 0 and "0 失败" in out:
-        c.ok("冒烟测试通过（基线 61 条）")
+        c.ok("冒烟测试通过（基线 65 条）")
     else:
         c.fail("冒烟测试", f"退出码 {code}\n{tail}")
 
