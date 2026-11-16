@@ -20,11 +20,6 @@ var _failed := 0
 func _ready() -> void:
 	await get_tree().process_frame
 
-	# 自定义存档目录必须存在，否则写档失败（save_system 不建目录，见审查报告 P2-11）
-	var save_dir := Save.abs_save_path().get_base_dir()
-	if not DirAccess.dir_exists_absolute(save_dir):
-		DirAccess.make_dir_recursive_absolute(save_dir)
-
 	print("========== 冒烟测试开始 ==========")
 
 	_check_data()
@@ -75,11 +70,43 @@ func _check_data() -> void:
 	var fallback: Dictionary = Data._load("res://data/__missing__.json", Data.DEFAULT_PLAYER)
 	_check_eq(float(fallback.get("fps", 0.0)), 15.0, "缺文件回落到内置默认值")
 
+	# 默认表与 JSON 重叠字段必须同值（规约 DATA-6），否则删掉 JSON 后手感会变
+	_check(_same_value(Data.player, Data.DEFAULT_PLAYER), "player.json 与默认表同值")
+	_check(_same_value(Data.enemies, Data.DEFAULT_ENEMIES), "enemies.json 与默认表同值")
+	_check(_same_value(Data.boss, Data.DEFAULT_BOSS), "boss.json 与默认表同值")
+
+	# _merge 类型校验：标量不能覆盖字典，否则 player.gd 的 Dictionary 取值会崩
+	var scalar_over_dict: Dictionary = Data._merge(
+			Data.DEFAULT_PLAYER.duplicate(true), {"move": 5, "stats": "坏"})
+	_check_eq(typeof(scalar_over_dict.get("move")), TYPE_DICTIONARY, "标量不能覆盖 move 字典")
+	_check_eq(float(scalar_over_dict["move"]["speed"]), 220.0, "被拒的标量不污染默认值")
+
+	# 数组长度 / 元素结构不对时保留默认数组；合法元素则深合并
+	var wrong_size: Dictionary = Data._merge(
+			Data.DEFAULT_PLAYER.duplicate(true), {"attacks": [1, 2]})
+	_check_eq(wrong_size["attacks"].size(), 3, "数组长度不符时保留默认数组")
+	var partial: Dictionary = Data._merge(Data.DEFAULT_PLAYER.duplicate(true), {
+		"attacks": [
+			{"startup": 1},
+			{},
+			{"mult": 2.0, "active": 1, "recover": 3, "knockback": 60.0},
+		],
+	})
+	_check_eq(int(partial["attacks"][0].get("startup", 0)), 1, "数组元素按字典深合并")
+	_check_eq(int(partial["attacks"][0].get("active", 0)), 1, "数组元素缺键保留默认值")
+
 
 # ---------------- Save ----------------
 func _check_save() -> void:
 	print("[Save] 存档")
 	var backup: Dictionary = Save.data.duplicate(true)
+
+	# 目录不存在时写档要自动建目录（P2-11）；只删测试目录，避免误删 user://
+	var save_dir := Save.abs_save_path().get_base_dir()
+	if not OS.get_environment("SALVATION_SAVE_DIR").is_empty():
+		_remove_dir_recursive(save_dir)
+	_check(Save.save_data(), "目录不存在时自动建目录并写档")
+	_check(FileAccess.file_exists(Save.abs_save_path()), "主档已生成")
 
 	Save.data["gold"] = 321
 	Save.data["clears"] = 2
@@ -87,6 +114,38 @@ func _check_save() -> void:
 	Save.load_data()
 	_check_eq(int(Save.data.get("gold", 0)), 321, "金币读写往返")
 	_check_eq(int(Save.data.get("clears", 0)), 2, "通关次数读写往返")
+
+	# 第二次写档：旧主档应降级为 save.bak（此时 gold=321）
+	Save.data["gold"] = 654
+	_check(Save.save_data(), "第二次写入")
+	_check(FileAccess.file_exists(Save.abs_bak_path()), "旧档降级为 save.bak")
+
+	# 主档损坏 → 从 bak 恢复上一份
+	_write_text(Save.abs_save_path(), "{ 这不是 JSON ")
+	Save.load_data()
+	_check_eq(int(Save.data.get("gold", 0)), 321, "主档损坏时从 save.bak 恢复")
+
+	# settings 被写成字符串：不能崩，其余字段照读，settings 回落默认
+	_write_json(Save.abs_save_path(), {"gold": 55, "settings": "坏"})
+	Save.load_data()
+	_check_eq(int(Save.data.get("gold", 0)), 55, "settings 损坏时其余字段仍可读")
+	_check_eq(typeof(Save.data.get("settings")), TYPE_DICTIONARY, "settings 非字典时回落默认字典")
+	_check_eq(float(Save.get_setting("bgm", -1.0)), 1.0, "settings 损坏时 get_setting 返回默认")
+
+	# settings 内部值类型错误：逐键丢弃，合法键保留
+	_write_json(Save.abs_save_path(), {"gold": 1, "settings": {
+		"bgm": "大声", "numbers": "yes", "tutorial": false,
+	}})
+	Save.load_data()
+	_check_eq(float(Save.get_setting("bgm", 0.0)), 1.0, "settings.bgm 类型错误回落默认")
+	_check_eq(Save.get_setting("numbers", false), true, "settings.numbers 类型错误回落默认")
+	_check_eq(Save.get_setting("tutorial", true), false, "settings 合法布尔保留")
+
+	# 顶层字段类型错误也不能崩
+	_write_json(Save.abs_save_path(), {"gold": "很多", "best_time": []})
+	Save.load_data()
+	_check_eq(int(Save.data.get("gold", 0)), 0, "gold 类型错误回落默认")
+	_check_eq(float(Save.data.get("best_time", -1.0)), 0.0, "best_time 类型错误回落默认")
 
 	# 战绩累积规则：金币累加、评价取高、最快用时取小
 	Save.data["gold"] = 0
@@ -99,14 +158,6 @@ func _check_save() -> void:
 	_check_eq(int(Save.data.get("clears", 0)), 2, "通关次数累加")
 	_check_eq(String(Save.data.get("best_grade", "")), "A", "评价只升不降")
 	_check_eq(float(Save.data.get("best_time", 0.0)), 120.0, "最快用时取最小")
-
-	# 坏档回落：写一段非法 JSON，load_data() 必须给默认值而不是崩
-	var f := FileAccess.open(Save.abs_save_path(), FileAccess.WRITE)
-	if f != null:
-		f.store_string("{ 这不是 JSON ")
-		f.close()
-	Save.load_data()
-	_check_eq(int(Save.data.get("gold", 0)), 0, "坏档回落默认值")
 
 	Save.data = backup
 	Save.save_data()
@@ -193,3 +244,64 @@ func _check_boss() -> void:
 
 	boss.queue_free()
 	await get_tree().process_frame
+
+
+# ---------------- 测试辅助 ----------------
+## 默认表里的每个键，实际数据（JSON 合并结果）都必须同类型同值
+func _same_value(actual: Variant, defaults: Variant) -> bool:
+	if typeof(defaults) == TYPE_DICTIONARY:
+		if typeof(actual) != TYPE_DICTIONARY:
+			return false
+		for key in defaults.keys():
+			if not actual.has(key) or not _same_value(actual[key], defaults[key]):
+				return false
+		return true
+	if typeof(defaults) == TYPE_ARRAY:
+		if typeof(actual) != TYPE_ARRAY or actual.size() != defaults.size():
+			return false
+		for i in actual.size():
+			if not _same_value(actual[i], defaults[i]):
+				return false
+		return true
+	if typeof(defaults) == TYPE_FLOAT or typeof(defaults) == TYPE_INT:
+		if typeof(actual) != TYPE_FLOAT and typeof(actual) != TYPE_INT:
+			return false
+		return is_equal_approx(float(actual), float(defaults))
+	return actual == defaults
+
+
+func _remove_dir_recursive(path: String) -> void:
+	if not DirAccess.dir_exists_absolute(path):
+		return
+	var dir := DirAccess.open(path)
+	if dir == null:
+		return
+	var names: Array[String] = []
+	dir.list_dir_begin()
+	var entry := dir.get_next()
+	while entry != "":
+		if entry != "." and entry != "..":
+			names.append(entry)
+		entry = dir.get_next()
+	dir.list_dir_end()
+
+	for name in names:
+		var full := path.path_join(name)
+		if DirAccess.dir_exists_absolute(full):
+			_remove_dir_recursive(full)
+		else:
+			DirAccess.remove_absolute(full)
+	DirAccess.remove_absolute(path)
+
+
+func _write_text(path: String, text: String) -> void:
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		_check(false, "写测试文件 %s" % path)
+		return
+	f.store_string(text)
+	f.close()
+
+
+func _write_json(path: String, d: Dictionary) -> void:
+	_write_text(path, JSON.stringify(d, "\t"))
