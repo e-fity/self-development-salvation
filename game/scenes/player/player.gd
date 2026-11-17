@@ -1,6 +1,6 @@
 extends CharacterBody2D
-## 「蓝橙」：移动 / 跳跃 / 三连击 / 闪避 / 橙闪（灰盒）
-## 参数：PRD 6.2（移动）· 5.3（帧数据）· 4.3 / 4.5（无敌帧规则）
+## 「蓝橙」：移动 / 跳跃 / 三连击 / 闪避 / 橙闪 / 逆鳞 / 零点（灰盒）
+## 参数：PRD 4.3（帧数据）· 4.5（能量/无敌/霸体）· 5.2（技能）
 
 # ---------------- 数值（来自 data/player.json，Data 负责合并默认值） ----------------
 var fps := 15.0
@@ -42,19 +42,52 @@ var hurt_invuln_time := 0.5
 var respawn_delay := 1.5
 var combo_reset_time := 3.0
 
+# 能量（PRD 4.5：命中 +6、击杀 +15、受击 −10，上限 100）
+var max_energy := 100.0
+var energy_on_hit := 6.0
+var energy_on_kill := 15.0
+var energy_on_damage := 10.0
+
+# 逆鳞（L）：10 帧，1–3 起手 / 4 判定 / 5–10 收招，半径 120，10s 冷却，2s 霸体
+var skill2_frames := 10
+var skill2_startup := 3
+var skill2_active := 1
+var skill2_recover := 6
+var skill2_radius := 120.0
+var skill2_mult := 1.2
+var skill2_knockback := 120.0
+var skill2_cooldown := 10.0
+var skill2_armor := 2.0
+
+# 零点（I）：24 帧，1–6 起手 / 7–12 判定+无敌 / 13–24 收招，倍率 4.0 + 连击加成
+var ult_frames := 24
+var ult_startup := 6
+var ult_active := 6
+var ult_recover := 12
+var ult_mult := 4.0
+var ult_combo_bonus := 0.005
+var ult_combo_cap := 1.0
+var ult_knockback := 160.0
+var ult_width := 4800.0
+var ult_height := 2400.0
+
 @export var attack_power := 12.0        # PRD：ATK 初始 12
 @export var hitbox_size := Vector2(100, 130)
 @export var hitbox_offset := Vector2(55, -90)
 
-enum State { IDLE, ATTACK, DODGE, DASH, DEAD }
-const STATE_NAMES := ["待机", "攻击", "闪避", "橙闪", "死亡"]
+enum State { IDLE, ATTACK, DODGE, DASH, SKILL2, ULTIMATE, DEAD }
+const STATE_NAMES := ["待机", "攻击", "闪避", "橙闪", "逆鳞", "零点", "死亡"]
 
-# 调试面板读这两个
+# 调试面板读这几个
 var dodge_cd := 0.0
 var dash_cd := 0.0
+var skill2_cd := 0.0
 
 var state: State = State.IDLE
 var invulnerable := false
+
+# 能量（0–max_energy）；零点在判定帧一次性清空
+var energy := 0.0
 
 # 生命
 var max_hp := 100.0
@@ -92,7 +125,10 @@ var _facing := 1
 var _knock := 0.0
 var _was_on_floor := true        # 受击击退的横向速度，逐帧衰减
 
-var _hit_shape := RectangleShape2D.new()
+## 霸体剩余时间：逆鳞期间受击不打断、不被击退，伤害 ×0.8（PRD 4.5）
+var _super_armor := 0.0
+var _ult_mult := 0.0
+var _rect := RectQuery.new()
 
 const ART_IDLE := "res://art/player/idle.png"
 const ART_HEIGHT := 180.0
@@ -103,7 +139,6 @@ const ART_HEIGHT := 180.0
 
 func _ready() -> void:
 	_load_data()
-	_hit_shape.size = hitbox_size
 	slash.visible = false
 	_apply_art()
 
@@ -188,12 +223,44 @@ func _load_data() -> void:
 	dash_mult = Data.num(ds, "mult", dash_mult)
 	dash_knockback = Data.num(ds, "knockback", dash_knockback)
 
+	var en: Dictionary = d.get("energy", {})
+	max_energy = Data.num(en, "max", max_energy)
+	energy_on_hit = Data.num(en, "on_hit", energy_on_hit)
+	energy_on_kill = Data.num(en, "on_kill", energy_on_kill)
+	energy_on_damage = Data.num(en, "on_damage", energy_on_damage)
+	energy = 0.0
+
+	var s2: Dictionary = d.get("skill2", {})
+	skill2_frames = int(Data.num(s2, "frames", float(skill2_frames)))
+	skill2_startup = int(Data.num(s2, "startup", float(skill2_startup)))
+	skill2_active = int(Data.num(s2, "active", float(skill2_active)))
+	skill2_recover = int(Data.num(s2, "recover", float(skill2_recover)))
+	skill2_radius = Data.num(s2, "radius", skill2_radius)
+	skill2_mult = Data.num(s2, "mult", skill2_mult)
+	skill2_knockback = Data.num(s2, "knockback", skill2_knockback)
+	skill2_cooldown = Data.num(s2, "cooldown", skill2_cooldown)
+	skill2_armor = Data.num(s2, "armor_time", skill2_armor)
+
+	var ul: Dictionary = d.get("ultimate", {})
+	ult_frames = int(Data.num(ul, "frames", float(ult_frames)))
+	ult_startup = int(Data.num(ul, "startup", float(ult_startup)))
+	ult_active = int(Data.num(ul, "active", float(ult_active)))
+	ult_recover = int(Data.num(ul, "recover", float(ult_recover)))
+	ult_mult = Data.num(ul, "mult", ult_mult)
+	ult_combo_bonus = Data.num(ul, "combo_bonus", ult_combo_bonus)
+	ult_combo_cap = Data.num(ul, "combo_bonus_cap", ult_combo_cap)
+	ult_knockback = Data.num(ul, "knockback", ult_knockback)
+	ult_width = Data.num(ul, "width", ult_width)
+	ult_height = Data.num(ul, "height", ult_height)
+
 	_jumps_left = max_jumps
 
 
 func _physics_process(delta: float) -> void:
 	dodge_cd = maxf(0.0, dodge_cd - delta)
 	dash_cd = maxf(0.0, dash_cd - delta)
+	skill2_cd = maxf(0.0, skill2_cd - delta)
+	_super_armor = maxf(0.0, _super_armor - delta)
 
 	# 受击后的短暂无敌 + 闪烁（死亡动画期间不抢 visual.modulate）
 	if _hurt_invuln > 0.0 and not _dead:
@@ -216,6 +283,10 @@ func _physics_process(delta: float) -> void:
 			_process_dodge(delta)
 		State.DASH:
 			_process_dash(delta)
+		State.SKILL2:
+			_process_skill2(delta)
+		State.ULTIMATE:
+			_process_ultimate(delta)
 		State.DEAD:
 			pass
 		_:
@@ -254,19 +325,32 @@ func _apply_visual_alpha(alpha := -1.0) -> void:
 func take_damage(amount: float, from_dir: int) -> void:
 	if _dead or invulnerable or _hurt_invuln > 0.0:
 		return
-	hp = maxf(0.0, hp - amount)
+	var dmg := amount
+	if _super_armor > 0.0:
+		dmg *= 0.8                     # 霸体：照常受伤但 ×0.8（PRD 4.5）
+	hp = maxf(0.0, hp - dmg)
 	hits_taken += 1
 	_hurt_invuln = hurt_invuln_time
-	# 击退不能直接写 velocity.x——_process_move 每帧都会覆盖它，会变成 0
-	_knock = from_dir * hurt_knockback
-	Fx.impact(amount, false)   # 挨打也要有停顿和震屏，音效下面单独播
+	_gain_energy(-energy_on_damage)
+
+	# 霸体期间不打断动作、不被击退，只掉血
+	if _super_armor <= 0.0:
+		# 击退不能直接写 velocity.x——_process_move 每帧都会覆盖它，会变成 0
+		_knock = from_dir * hurt_knockback
+		if state == State.ATTACK or state == State.SKILL2 or state == State.ULTIMATE:
+			_end_action()
+
+	Fx.impact(dmg, false)   # 挨打也要有停顿和震屏，音效下面单独播
 	Audio.play_varied("hurt", -2.0)
-	Fx.damage_number(global_position + Vector2(0, -230), amount, Color(1.0, 0.42, 0.36))
-	if state == State.ATTACK:
-		_end_action()
+	Fx.damage_number(global_position + Vector2(0, -230), dmg, Color(1.0, 0.42, 0.36))
 
 	if hp <= 0.0:
 		_die()
+
+
+## 能量增减统一入口：命中/击杀加、受击减，永远夹在 0–max 之间
+func _gain_energy(amount: float) -> void:
+	energy = clampf(energy + amount, 0.0, max_energy)
 
 
 func is_dead() -> bool:
@@ -295,9 +379,11 @@ func _respawn() -> void:
 		pos = level.respawn_point
 	global_position = pos
 	hp = max_hp
+	energy = 0.0
 	_dead = false
 	state = State.IDLE
 	velocity = Vector2.ZERO
+	_super_armor = 0.0
 	visual.modulate = Color.WHITE
 	_hurt_invuln = 1.0
 	print("[玩家] 已重生，HP %.0f" % hp)
@@ -345,11 +431,15 @@ func _process_move(delta: float) -> void:
 		if _grace <= 0.0:
 			_combo_next = 0
 
-	# 优先级：闪避 > 橙闪 > 普攻（地面是三连，空中是跳攻，最多 2 段）
+	# 优先级：闪避 > 橙闪 > 逆鳞 > 零点 > 普攻（地面三连，空中跳攻最多 2 段）
 	if Input.is_action_just_pressed("dodge") and dodge_cd <= 0.0 and is_on_floor():
 		_start_dodge(_input_dir())
 	elif Input.is_action_just_pressed("skill1") and dash_cd <= 0.0:
 		_start_dash()
+	elif Input.is_action_just_pressed("skill2") and skill2_cd <= 0.0 and is_on_floor():
+		_start_skill2()
+	elif Input.is_action_just_pressed("ultimate") and energy >= max_energy and is_on_floor():
+		_start_ultimate()
 	elif _attack_pressed():
 		if is_on_floor():
 			_start_attack(_combo_next)
@@ -521,6 +611,89 @@ func _process_dash(delta: float) -> void:
 	move_and_slide()
 
 
+# ---------------- 逆鳞（L） ----------------
+func _start_skill2() -> void:
+	state = State.SKILL2
+	_state_time = 0.0
+	_hit_done = false
+	_hit_ids.clear()
+	velocity.x = 0.0
+	slash.visible = false
+	_super_armor = skill2_armor      # 2 秒霸体：起手即生效
+	Audio.play_varied("swing_heavy", -5.0, 0.9)
+
+
+func _process_skill2(delta: float) -> void:
+	_state_time += delta
+	if not is_on_floor():
+		velocity.y += gravity * delta
+
+	var active_from := float(skill2_startup) / fps
+	var active_to := float(skill2_startup + skill2_active) / fps
+	var in_active := _state_time >= active_from and _state_time < active_to
+
+	if in_active and not _hit_done:
+		_hit_done = true
+		# 判定帧才消耗冷却：起手被打断不产生伤害，也不该进 CD（PRD 4.3 硬规则 3）
+		skill2_cd = skill2_cooldown
+		_hit_circle(skill2_mult, skill2_knockback, global_position, skill2_radius)
+		Audio.play("hit_heavy", -4.0, 0.9)
+		Fx.impact(14.0)
+
+	slash.visible = in_active
+
+	# 第 8 帧起可接闪避（PRD 4.3）
+	if _state_time >= float(8) / fps and Input.is_action_just_pressed("dodge") \
+			and dodge_cd <= 0.0 and is_on_floor():
+		_start_dodge(_input_dir())
+		return
+
+	if _state_time >= float(skill2_frames) / fps:
+		_end_action()
+
+	move_and_slide()
+
+
+# ---------------- 零点（I） ----------------
+func _start_ultimate() -> void:
+	state = State.ULTIMATE
+	_state_time = 0.0
+	_hit_done = false
+	_hit_ids.clear()
+	_ult_mult = ult_mult
+	velocity.x = 0.0
+	slash.visible = false
+	Audio.play_varied("swing_heavy", -2.0, 0.7)
+
+
+func _process_ultimate(delta: float) -> void:
+	_state_time += delta
+	if not is_on_floor():
+		velocity.y += gravity * delta
+
+	var active_from := float(ult_startup) / fps
+	var active_to := float(ult_startup + ult_active) / fps
+	var in_active := _state_time >= active_from and _state_time < active_to
+	invulnerable = in_active           # 7–12 帧无敌（PRD 4.3 / 4.5）
+	_apply_visual_alpha()
+
+	if in_active and not _hit_done:
+		_hit_done = true
+		var bonus := minf(float(combo) * ult_combo_bonus, ult_combo_cap)
+		_ult_mult = ult_mult * (1.0 + bonus)
+		_hit_rect(_ult_mult, ult_knockback, global_position, Vector2(ult_width, ult_height), 64)
+		energy = 0.0                   # 判定帧清空能量；放在命中之后，避免把这一刀的 +6 又收回来
+		Audio.play("hit_heavy", -2.0, 0.7)
+		Fx.impact(40.0)
+
+	slash.visible = in_active
+
+	if _state_time >= float(ult_frames) / fps:
+		_end_action()
+
+	move_and_slide()
+
+
 # ---------------- 公共 ----------------
 func _end_action() -> void:
 	state = State.IDLE
@@ -540,20 +713,29 @@ func _damage_against(mult: float, target: Object) -> float:
 
 
 func _do_hit(mult: float, knockback: float, offset: Vector2) -> void:
-	var space := get_world_2d().direct_space_state
-	var query := PhysicsShapeQueryParameters2D.new()
-	query.shape = _hit_shape
-	query.transform = Transform2D(0.0, global_position + Vector2(offset.x * _facing, offset.y))
-	query.collision_mask = 2
-	query.exclude = [get_rid()]
+	var center := global_position + Vector2(offset.x * _facing, offset.y)
+	_hit_rect(mult, knockback, center, hitbox_size)
 
-	var hits := space.intersect_shape(query, 8)
+
+## 矩形判定：普攻 / 跳攻 / 橙闪 / 零点
+func _hit_rect(mult: float, knockback: float, center: Vector2, size: Vector2,
+		max_targets := 8) -> void:
+	var targets := _rect.bodies(get_world_2d().direct_space_state, center, size, 2, max_targets)
+	_apply_hits(targets, mult, knockback)
+
+
+## 圆形判定：逆鳞（半径 120）
+func _hit_circle(mult: float, knockback: float, center: Vector2, radius: float) -> void:
+	var targets := _rect.circle_bodies(get_world_2d().direct_space_state, center, radius, 2, 12)
+	_apply_hits(targets, mult, knockback)
+
+
+func _apply_hits(targets: Array[Node], mult: float, knockback: float) -> void:
 	var hit_any := false
 	var biggest := 0.0
 
-	for h in hits:
-		var body = h["collider"]
-		if body == null or not body.has_method("take_hit"):
+	for body in targets:
+		if not body.has_method("take_hit"):
 			continue
 		# 同一次动作对同一目标只结算一次
 		if _hit_ids.has(body.get_instance_id()):
@@ -564,6 +746,9 @@ func _do_hit(mult: float, knockback: float, offset: Vector2) -> void:
 		var dmg := _damage_against(mult, body)
 		body.take_hit(dmg, _facing, knockback)
 		Fx.damage_number(body.global_position + Vector2(0, -215), dmg)
+		_gain_energy(energy_on_hit)
+		if bool(body.get("_dead")):
+			_gain_energy(energy_on_kill)
 		hit_any = true
 		biggest = maxf(biggest, dmg)
 

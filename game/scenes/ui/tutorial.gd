@@ -67,7 +67,7 @@ func _process(_delta: float) -> void:
 	if x > HINT_DODGE_X:
 		_hint("dodge", "Shift 闪避 · 前 3 帧无敌")
 	if x > HINT_SKILL_X:
-		_hint("skills", "K 橙闪突进 · 冲刺帧带无敌，可以穿过攻击")
+		_hint("skills", "K 橙闪突进 · L 逆鳞范围击退 · I 能量满时放零点")
 	if int(_player.get("hits_taken")) > 0:
 		_hint("hurt", "被击中后有一小段无敌时间——先拉开，再反击")
 	# Boss 提示按距离触发，不能按「场景里有没有 Boss」——Boss 一开局就在场景里

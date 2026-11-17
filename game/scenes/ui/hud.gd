@@ -7,6 +7,8 @@ const BOSS_BAR_W := 640.0
 var _player: Node
 var _fill: ColorRect
 var _label: Label
+var _energy_fill: ColorRect
+var _skill_label: Label
 
 var _boss_bar: ColorRect
 var _boss_bg: ColorRect
@@ -38,6 +40,28 @@ func _ready() -> void:
 	_label.add_theme_font_size_override("font_size", 20)
 	_label.add_theme_color_override("font_color", Color(0.9, 0.93, 1.0))
 	add_child(_label)
+
+	# 能量条：血条正下方，橙黄；满能量时零点可用
+	var eb := ColorRect.new()
+	eb.position = Vector2(24, 92)
+	eb.size = Vector2(BAR_W + 6, 16)
+	eb.color = Color(0.04, 0.05, 0.07, 0.85)
+	add_child(eb)
+
+	_energy_fill = ColorRect.new()
+	_energy_fill.position = Vector2(27, 95)
+	_energy_fill.size = Vector2(0, 10)
+	_energy_fill.color = Color(0.95, 0.62, 0.18)
+	add_child(_energy_fill)
+
+	# 右下角：逆鳞冷却 / 零点能量状态（PRD 战斗 HUD）
+	_skill_label = Label.new()
+	_skill_label.position = Vector2(1360, 1000)
+	_skill_label.size = Vector2(520, 40)
+	_skill_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_skill_label.add_theme_font_size_override("font_size", 22)
+	_skill_label.add_theme_color_override("font_color", Color(0.92, 0.94, 1.0))
+	add_child(_skill_label)
 
 	# Boss 血条（屏幕上方居中）
 	_boss_bg = ColorRect.new()
@@ -87,6 +111,19 @@ func _process(delta: float) -> void:
 		var ratio: float = clampf(_player.hp / _player.max_hp, 0.0, 1.0)
 		_fill.size.x = BAR_W * ratio
 		_label.text = "HP  %d / %d" % [int(ceil(_player.hp)), int(_player.max_hp)]
+
+		var max_energy: float = _player.max_energy if "max_energy" in _player else 100.0
+		var energy: float = _player.energy if "energy" in _player else 0.0
+		_energy_fill.size.x = BAR_W * clampf(energy / maxf(max_energy, 1.0), 0.0, 1.0)
+		var ready := energy >= max_energy
+		var cd: float = _player.skill2_cd if "skill2_cd" in _player else 0.0
+		_skill_label.text = "L 逆鳞 %s    ·    I 零点 %s" % [
+			"就绪" if cd <= 0.0 else "%.1fs" % cd,
+			"就绪" if ready else "%.0f%%" % (energy / maxf(max_energy, 1.0) * 100.0),
+		]
+		_skill_label.add_theme_color_override(
+			"font_color", Color(1.0, 0.86, 0.4) if ready else Color(0.92, 0.94, 1.0)
+		)
 
 		if _player.combo >= 2:
 			_combo_label.visible = true

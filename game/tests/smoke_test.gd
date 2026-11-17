@@ -63,6 +63,9 @@ func _check_data() -> void:
 	_check(Data.boss.has("combo"), "boss.json 含 combo")
 	_check_eq(Data.player["attacks"].size(), 3, "玩家三段普攻")
 	_check_eq(Data.num(Data.enemies["melee"], "attack_range", 0.0), 70.0, "木桩攻击距离取自 JSON")
+	_check_eq(Data.num(Data.player["energy"], "max", 0.0), 100.0, "能量上限取自 JSON")
+	_check_eq(Data.num(Data.player["skill2"], "cooldown", 0.0), 10.0, "逆鳞冷却取自 JSON")
+	_check_eq(Data.num(Data.player["ultimate"], "mult", 0.0), 4.0, "零点倍率取自 JSON")
 
 	# 类型兜底：字符串不该被当成数字
 	_check_eq(Data.num({"v": "坏值"}, "v", 5.0), 5.0, "num() 拒绝字符串")
@@ -196,10 +199,20 @@ func _check_player() -> void:
 	_check_eq(float(player.hp), float(player.max_hp), "初始满血")
 	_check_eq(float(player.hurt_knockback), 240.0, "feedback 击退取自 player.json")
 	_check_eq(float(player.combo_reset_time), 3.0, "feedback 连击窗口取自 player.json")
+	_check_eq(float(player.skill2_cooldown), 10.0, "逆鳞冷却取自 player.json")
+	_check_eq(float(player.ult_mult), 4.0, "零点倍率取自 player.json")
+
+	# 能量：初始 0、命中 +6、上限 100、受击 −10（PRD 4.5）
+	_check_eq(float(player.energy), 0.0, "初始能量为 0")
+	player.call("_gain_energy", 6.0)
+	_check_eq(float(player.energy), 6.0, "命中一次 +6 能量")
+	player.call("_gain_energy", 1000.0)
+	_check_eq(float(player.energy), float(player.max_energy), "能量封顶 100")
 
 	player.take_damage(10.0, 1)
 	_check_eq(float(player.hp), float(player.max_hp) - 10.0, "受伤扣血")
 	_check_eq(int(player.hits_taken), 1, "受伤计数")
+	_check_eq(float(player.energy), 90.0, "受击 −10 能量")
 	player.take_damage(10.0, 1)
 	_check_eq(float(player.hp), float(player.max_hp) - 10.0, "无敌帧内二次受伤被忽略")
 
@@ -214,7 +227,33 @@ func _check_player() -> void:
 	plain.free()
 	var armed := ArmedTarget.new()
 	_check_eq(player.call("_damage_against", 1.0, armed), 7.0, "目标 defense 参与减伤")
+	_check(is_equal_approx(player.call("_damage_against", 1.2, armed), 9.4), "逆鳞倍率参与伤害")
 	armed.free()
+
+	# 逆鳞：判定帧才消耗冷却，起手期 2s 霸体
+	player.call("_start_skill2")
+	_check_eq(int(player.state), int(player.State.SKILL2), "逆鳞进入起手状态")
+	_check(player.get("_super_armor") > 1.5, "逆鳞起手即有 2s 霸体")
+	player.set("_state_time", float(player.skill2_startup) / float(player.fps))
+	player.call("_process_skill2", 0.0)
+	_check_eq(float(player.skill2_cd), 10.0, "逆鳞判定帧消耗 10s 冷却")
+
+	# 零点：判定帧清空能量，20 连击时 4.0 × 1.1 = 4.4 倍
+	player.set("state", player.State.IDLE)
+	player.set("energy", player.max_energy)
+	player.set("combo", 20)
+	player.call("_start_ultimate")
+	player.set("_state_time", float(player.ult_startup) / float(player.fps))
+	player.call("_process_ultimate", 0.0)
+	_check_eq(float(player.energy), 0.0, "零点判定帧清空能量")
+	_check(is_equal_approx(float(player.get("_ult_mult")), 4.4), "零点吃 20 连击加成到 4.4 倍")
+
+	# 收尾：回到待机，避免影响后面的闪避/红闪断言
+	player.set("state", player.State.IDLE)
+	player.invulnerable = false
+	player.set("energy", 0.0)
+	player.set("combo", 0)
+	player.call("_apply_visual_alpha")
 
 	# P2-5：红闪在闪避/橙闪期间到期时，不能把红色残留到动作结束
 	player.set("_hurt_invuln", 0.05)

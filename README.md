@@ -69,6 +69,8 @@ $godot = "D:\Godot\Godot_v4.7.2-stable_win64_console.exe"
 | 普攻（地面三连、空中两段） | 鼠标左键 / J |
 | 闪避（前 3 帧无敌） | Shift / U |
 | 橙闪突进（K，6 秒 CD） | K |
+| 逆鳞范围击退（L，10 秒 CD，2 秒霸体） | L |
+| 零点全屏斩（I，能量满可用，吃连击加成） | I |
 | 暂停 | Esc |
 | 调试面板显隐 | F1 |
 
@@ -84,7 +86,7 @@ $env:SALVATION_SAVE_DIR = $save                                # 隔离存档，
 echo $LASTEXITCODE    # 0 = 全过，1 = 有失败项
 ```
 
-当前基线：**74 项断言全部通过，退出码 0**。测试会先删掉并重建 `SALVATION_SAVE_DIR` 目录，顺带验证「目录不存在时自动创建」；若该路径不可写，Save 组会失败（属环境问题）。
+当前基线：**89 项断言全部通过，退出码 0**。测试会先删掉并重建 `SALVATION_SAVE_DIR` 目录，顺带验证「目录不存在时自动创建」；若该路径不可写，Save 组会失败（属环境问题）。
 
 一键门禁（静态检查 + 可选 Godot 冒烟）：
 
@@ -99,7 +101,7 @@ python tools/check.py --godot  # 追加冒烟测试与 level/title 场景
 
 所有战斗数值在 `game/data/*.json`，启动时由 `Data` 加载并与内置默认值深合并：
 
-- `player.json`：移动/跳跃、三段普攻帧数据、跳攻、闪避、橙闪
+- `player.json`：移动/跳跃、三段普攻帧数据、跳攻、闪避、橙闪、逆鳞/零点、能量与受击反馈
 - `enemies.json`：木桩血量/攻击距离/前摇/击飞阈值
 - `boss.json`：Boss 血量、阶段阈值、三连斩/跳劈/召唤参数
 
@@ -137,7 +139,7 @@ python tools/assets/make_sfx.py            # 重新生成 game/audio 下的占�
 
 ## 已知限制
 
-- 技能 L / I 未实现：`project.godot` 的未用动作与教学文案已同步移除（P2-4）；手柄、`strings.csv`、`export_presets.cfg` 均未落地。
+- 技能已补齐 K / L / I 三个；手柄、`strings.csv`、`export_presets.cfg` 仍未落地；音效侧 L / I 暂复用重击声，未单独生成素材。
 - 存档已实现 `save.bak` 回滚与目录自动创建；`fsync` 未实现（Godot `FileAccess` 不暴露），验收口径为「主档或 bak 至少一份可用」。
 - 角色/敌人/UI 均为代码绘制的灰盒，无 AnimatedSprite2D 与动画资源。
 - `audio/sfx/hit_player.wav` 为素材预留，当前没有代码播放；其余音效均已接入。

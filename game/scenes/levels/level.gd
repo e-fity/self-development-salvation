@@ -66,7 +66,9 @@ func _track_checkpoints() -> void:
 		print("[检查点] 记录 x=%.0f" % respawn_point.x)
 		if _taken >= checkpoints.size():
 			player.hp = player.max_hp
-			print("[神龛] 血已回满")
+			if "energy" in player:
+				player.energy = player.max_energy
+			print("[神龛] 血与能量已回满")
 
 
 func _track_boss() -> void:
