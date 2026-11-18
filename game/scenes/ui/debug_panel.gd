@@ -1,5 +1,7 @@
 extends CanvasLayer
-## 手感调试面板（灰盒期专用）：F1 显示 / 隐藏
+## 调试面板（灰盒期专用）：F1 显示 / 隐藏
+## F2 无敌 · F3 秒杀最近敌人 · F4 传送到 Boss 前 · F5 冻结 AI · F6 碰撞形状
+## `（反引号）打开控制台：god / freeze / kill / warp <x> / help
 ## 滑条改的是 Fx 里的倍率，改完立即生效，不用重启
 
 var _panel: PanelContainer
@@ -7,6 +9,9 @@ var _stop_label: Label
 var _shake_label: Label
 var _numbers_box: CheckBox
 var _status_label: Label
+var _console: LineEdit
+var _console_log: Label
+var _console_open := false
 var _player: Node
 
 
@@ -87,6 +92,26 @@ func _build() -> void:
 	_status_label.add_theme_color_override("font_color", Color(0.75, 0.85, 1))
 	box.add_child(_status_label)
 
+	# 调试快捷键提示
+	var hint := Label.new()
+	hint.text = "F2 无敌 · F3 秒杀 · F4 到 Boss · F5 冻结 AI · F6 判定盒 · ` 控制台"
+	hint.add_theme_font_size_override("font_size", 12)
+	hint.add_theme_color_override("font_color", Color(0.62, 0.66, 0.72))
+	box.add_child(hint)
+
+	_console_log = Label.new()
+	_console_log.add_theme_font_size_override("font_size", 12)
+	_console_log.add_theme_color_override("font_color", Color(0.95, 0.85, 0.55))
+	box.add_child(_console_log)
+
+	_console = LineEdit.new()
+	_console.visible = false
+	_console.placeholder_text = "god / freeze / kill / warp <x> / help"
+	_console.custom_minimum_size = Vector2(320, 26)
+	_console.add_theme_font_size_override("font_size", 14)
+	_console.text_submitted.connect(_on_command)
+	box.add_child(_console)
+
 	_player = get_tree().get_first_node_in_group("player")
 	_update_labels()
 
@@ -95,8 +120,13 @@ func _process(_delta: float) -> void:
 	if _status_label == null or not is_instance_valid(_player):
 		return
 	var state_name: String = _player.STATE_NAMES[_player.state]
-	_status_label.text = "状态 %s   闪避 %.1fs   橙闪 %.1fs" % [
-		state_name, _player.dodge_cd, _player.dash_cd]
+	_status_label.text = "状态 %s   闪避 %.1fs   橙闪 %.1fs\n无敌 %s   冻结 %s   判定盒 %s" % [
+		state_name, _player.dodge_cd, _player.dash_cd,
+		_on_off(Debug.invincible), _on_off(Debug.freeze_ai), _on_off(Debug.hitboxes_visible)]
+
+
+func _on_off(on: bool) -> String:
+	return "开" if on else "关"
 
 
 func _update_labels() -> void:
@@ -105,6 +135,53 @@ func _update_labels() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F1:
-		visible = not visible
+	if not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	match event.keycode:
+		KEY_F1:
+			visible = not visible
+		KEY_F2:
+			Debug.toggle_invincible()
+		KEY_F3:
+			_console_log.text = Debug.kill_nearest()
+		KEY_F4:
+			_console_log.text = Debug.warp_to_boss()
+		KEY_F5:
+			Debug.toggle_freeze_ai()
+		KEY_F6:
+			_console_log.text = Debug.toggle_hitboxes()
+		_:
+			return
+	get_viewport().set_input_as_handled()
+
+
+## 控制台：` 开合，Esc 关闭；输入在 LineEdit 里，不抢游戏内的单键操作
+func _input(event: InputEvent) -> void:
+	if not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	if event.keycode == KEY_QUOTELEFT:
+		_toggle_console()
 		get_viewport().set_input_as_handled()
+	elif _console_open and event.keycode == KEY_ESCAPE:
+		_toggle_console()
+		get_viewport().set_input_as_handled()
+
+
+func _toggle_console() -> void:
+	_console_open = not _console_open
+	_console.visible = _console_open
+	if _console_open:
+		visible = true
+		_console.clear()
+		_console.grab_focus()
+	else:
+		_console.release_focus()
+		get_viewport().gui_release_focus()
+
+
+func _on_command(text: String) -> void:
+	var msg := Debug.run_command(text)
+	if not msg.is_empty():
+		_console_log.text = msg
+	_console.clear()
+	_console.grab_focus()

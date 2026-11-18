@@ -23,6 +23,7 @@ Fx="*res://autoload/fx.gd"
 Save="*res://autoload/save_system.gd"
 Settings="*res://autoload/settings_apply.gd"
 Audio="*res://autoload/audio.gd"
+Debug="*res://autoload/debug_tools.gd"
 
 [display]
 

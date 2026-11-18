@@ -2,6 +2,8 @@ extends CharacterBody2D
 ## 「蓝橙」：移动 / 跳跃 / 三连击 / 闪避 / 橙闪 / 逆鳞 / 零点（灰盒）
 ## 参数：PRD 4.3（帧数据）· 4.5（能量/无敌/霸体）· 5.2（技能）
 
+const BUFFER_WINDOW := 0.15   # 攻击输入缓冲窗口（秒）：硬直结束前 0.15s 内按才有效
+
 # ---------------- 数值（来自 data/player.json，Data 负责合并默认值） ----------------
 var fps := 15.0
 
@@ -323,7 +325,7 @@ func _apply_visual_alpha(alpha := -1.0) -> void:
 
 # ---------------- 受伤 / 死亡 ----------------
 func take_damage(amount: float, from_dir: int) -> void:
-	if _dead or invulnerable or _hurt_invuln > 0.0:
+	if _dead or Debug.invincible or invulnerable or _hurt_invuln > 0.0:
 		return
 	var dmg := amount
 	if _super_armor > 0.0:
@@ -520,7 +522,7 @@ func _process_attack(delta: float) -> void:
 		return
 
 	# 只有地面三连才吃输入缓冲；空中要一按一段
-	if not _air_mode and _attack_pressed():
+	if _buffer_attack_if_late():
 		_buffered = true
 
 	if _state_time >= _atk_total:
@@ -534,6 +536,19 @@ func _process_attack(delta: float) -> void:
 			_grace = combo_grace
 
 	move_and_slide()
+
+
+## 输入缓冲：只在硬直结束前 BUFFER_WINDOW 内接受攻击输入（PRD 5.3「0.15s」）
+## 提前乱按不算缓冲，避免「按早了反而自动接段」；空中攻击不参与缓冲
+func _buffer_attack_if_late() -> bool:
+	return _accepts_buffer(_attack_pressed())
+
+
+## 纯判断版本（不读 Input），便于冒烟测试直接驱动
+func _accepts_buffer(pressed: bool) -> bool:
+	if _air_mode or not pressed:
+		return false
+	return _state_time >= _atk_total - BUFFER_WINDOW
 
 
 # ---------------- 闪避 ----------------

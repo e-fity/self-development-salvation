@@ -42,6 +42,7 @@ var _player: Node2D
 
 
 func _ready() -> void:
+	add_to_group("enemy")   # 调试工具（F3 秒杀 / 控制台 kill）按组找最近目标
 	_load_data()
 	hp = max_hp
 	flash.visible = false
@@ -104,6 +105,15 @@ func _physics_process(delta: float) -> void:
 		# 刚被打飞的那一帧 is_on_floor() 还是上一帧的结果，不能立刻判定落地
 		_launched = false
 		print("[木桩] 落地")
+
+	if Debug.freeze_ai:
+		# 冻结 AI：保留重力与碰撞，停止走动/出手（解冻后从当前状态继续）
+		_walk_vx = 0.0
+		velocity.x = 0.0
+		_winding = false
+		_windup = 0.0
+		move_and_slide()
+		return
 
 	velocity.x = _knockback + _walk_vx
 	_knockback = move_toward(_knockback, 0.0, 1800.0 * delta)

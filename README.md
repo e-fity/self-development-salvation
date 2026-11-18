@@ -73,10 +73,12 @@ $godot = "D:\Godot\Godot_v4.7.2-stable_win64_console.exe"
 | 零点全屏斩（I，能量满可用，吃连击加成） | I |
 | 暂停 | Esc |
 | 调试面板显隐 | F1 |
+| 调试：无敌 / 秒杀最近敌人 / 传送到 Boss 前 / 冻结 AI / 碰撞形状 | F2 / F3 / F4 / F5 / F6 |
+| 调试控制台（`god` / `freeze` / `kill` / `warp <x>` / `help`） | `（反引号） |
 
 ## 自动化测试
 
-冒烟测试不依赖画面与音频设备，覆盖 Data / Save / Results / Player / Enemy / Level / Boss / Audio：
+冒烟测试不依赖画面与音频设备，覆盖 Data / Save / Results / Player / Enemy / Level / Boss / Audio / Debug：
 
 ```powershell
 $godot = "D:\Godot\Godot_v4.7.2-stable_win64_console.exe"
@@ -86,7 +88,7 @@ $env:SALVATION_SAVE_DIR = $save                                # 隔离存档，
 echo $LASTEXITCODE    # 0 = 全过，1 = 有失败项
 ```
 
-当前基线：**89 项断言全部通过，退出码 0**。测试会先删掉并重建 `SALVATION_SAVE_DIR` 目录，顺带验证「目录不存在时自动创建」；若该路径不可写，Save 组会失败（属环境问题）。
+当前基线：**106 项断言全部通过，退出码 0**。测试会先删掉并重建 `SALVATION_SAVE_DIR` 目录，顺带验证「目录不存在时自动创建」；若该路径不可写，Save 组会失败（属环境问题）。
 
 一键门禁（静态检查 + 可选 Godot 冒烟）：
 
@@ -135,6 +137,7 @@ python tools/assets/make_sfx.py            # 重新生成 game/audio 下的占�
 - [代码审查报告](docs/代码审查报告.md)：按 P1/P2/P3 分级的问题清单、PRD 差异矩阵、修复建议
 - [工程规范](docs/工程规范.md)：目录职责、文件归位、流程与测试要求
 - [代码规约](docs/代码规约.md)：引用 Godot / PEP 8 / Google JSON / Conventional Commits 的代码级规则（MUST/SHOULD）
+- [验收清单](docs/验收清单.md)：PRD 10 条验收到「按键 → 预期现象」的操作步骤，配合 F2–F6 调试键使用
 - [PRD v0.2 总结](docs/prd/游戏需求文档_v0.2_总结.md)：需求基线（Markdown 版）
 
 ## 已知限制

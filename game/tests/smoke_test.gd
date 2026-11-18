@@ -9,11 +9,12 @@ extends Node2D
 ##   Data     数值表加载 / 缺省兜底 / 类型兜底
 ##   Save     读写往返 / 坏档回落 / 战绩累积规则
 ##   Results  评价档位（S ≥ 90、A ≥ 70、否则 B）
-##   Player   受伤、无敌帧、数值来源
+##   Player   受伤、无敌帧、数值来源、输入缓冲窗口
 ##   Enemy    受击扣血、死亡标记
 ##   Level    战斗计时按 delta 累计、结算后停止
 ##   Boss     血量、阶段转换、转换期无敌与锁定出招、判定盒尺寸
 ##   Audio    BGM 走流内循环，不靠 finished 重播
+##   Debug    无敌 / 冻结 AI / 控制台命令 / 秒杀
 
 var _passed := 0
 var _failed := 0
@@ -32,6 +33,7 @@ func _ready() -> void:
 	_check_level()
 	await _check_boss()
 	_check_audio()
+	await _check_debug()
 
 	# 留一帧给延迟 free / tween / 计时器收尾，避免退出时报对象泄漏
 	await get_tree().create_timer(1.1, true, false, true).timeout
@@ -263,6 +265,18 @@ func _check_player() -> void:
 	await get_tree().create_timer(0.3, true, false, true).timeout
 	_check(is_equal_approx(player.visual.modulate.a, 1.0), "闪避结束后恢复不透明")
 
+	# 输入缓冲：只在硬直结束前 0.15s 内接受（PRD 5.3）
+	player.set("_air_mode", false)
+	player.set("_atk_total", 0.4)
+	player.set("_state_time", 0.1)
+	_check(not player.call("_accepts_buffer", true), "硬直早期按攻击不进缓冲")
+	player.set("_state_time", 0.3)
+	_check(bool(player.call("_accepts_buffer", true)), "结束前 0.15s 内按攻击进缓冲")
+	_check(not player.call("_accepts_buffer", false), "没有按键时不进缓冲")
+	player.set("_air_mode", true)
+	_check(not player.call("_accepts_buffer", true), "空中攻击不吃缓冲")
+	player.set("_air_mode", false)
+
 	player.queue_free()
 	await get_tree().process_frame
 
@@ -367,6 +381,59 @@ func _check_audio() -> void:
 				"BGM 使用流内前向循环"
 		)
 	Audio.stop_music()
+
+
+# ---------------- Debug ----------------
+func _check_debug() -> void:
+	print("[Debug] 调试开关与控制台")
+	Debug.reset()
+	_check(
+			not Debug.invincible and not Debug.freeze_ai and not Debug.hitboxes_visible,
+			"调试开关默认全关"
+	)
+	var player = load("res://scenes/player/player.tscn").instantiate()
+	player.position = Vector2(0, -200)
+	add_child(player)
+	await get_tree().physics_frame
+	_check(player != null, "测试场景里有玩家")
+
+	# F2 无敌：开启后 take_damage 直接返回
+	if player != null:
+		var hp_before := float(player.hp)
+		Debug.invincible = true
+		player.take_damage(99.0, 1)
+		_check_eq(float(player.hp), hp_before, "无敌开启后不掉血")
+		Debug.invincible = false
+
+	# F5 冻结 AI：木桩不推进冷却、不走动
+	var dummy = load("res://scenes/enemies/enemy_dummy.tscn").instantiate()
+	dummy.position = Vector2(600, -100)
+	add_child(dummy)
+	await get_tree().physics_frame
+	dummy.set("_atk_cd", 5.0)
+	Debug.freeze_ai = true
+	dummy.call("_physics_process", 0.1)
+	_check_eq(float(dummy.get("_atk_cd")), 5.0, "冻结 AI 时不推进攻击冷却")
+	_check(is_zero_approx(float(dummy.velocity.x)), "冻结 AI 时不走动")
+	Debug.freeze_ai = false
+
+	# 控制台：warp 改坐标、非法参数与未知命令有提示
+	_check_eq(Debug.warp_to_x("1234"), "已传送到 x=1234", "warp 命令移动玩家")
+	if player != null:
+		_check(is_equal_approx(player.global_position.x, 1234.0), "玩家 x 变为 1234")
+	_check(Debug.warp_to_x("abc").begins_with("用法："), "warp 非法参数被拒绝")
+	_check(Debug.run_command("help").begins_with("命令："), "help 列出命令")
+	_check(Debug.run_command("nope").begins_with("未知命令"), "未知命令给出提示")
+	_check(Debug.warp_to_boss() == "Boss 不在场", "场景无 Boss 时传送有提示")
+
+	# F3 秒杀：木桩在附近时 kill 生效
+	_check(Debug.run_command("kill").begins_with("已秒杀"), "kill 命中最近敌人")
+	_check(bool(dummy.get("_dead")), "被秒杀的木桩进入死亡")
+
+	Debug.reset()
+	dummy.queue_free()
+	player.queue_free()
+	await get_tree().process_frame
 
 
 # ---------------- 测试辅助 ----------------

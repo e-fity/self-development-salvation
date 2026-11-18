@@ -119,6 +119,11 @@ func _physics_process(delta: float) -> void:
 	else:
 		flash_poly.visible = false
 
+	if Debug.freeze_ai:
+		# 冻结 AI：重力/落地照常，停止计时与出招；解冻后至少留 0.5s 缓冲再出手
+		_atk_timer = maxf(_atk_timer, 0.5)
+		return
+
 	if _dead or _busy:
 		return
 
