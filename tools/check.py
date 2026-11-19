@@ -16,6 +16,7 @@ import json
 import os
 import py_compile
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -23,6 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 GAME = ROOT / "game"
 DATA = GAME / "data"
+# 最后才回落到开发机路径；优先 GODOT_BIN 与 PATH，避免别人 clone 后门禁直接失败
 DEFAULT_GODOT = Path(r"D:\Godot\Godot_v4.7.2-stable_win64_console.exe")
 
 MAX_GD_LINE = 100
@@ -201,6 +203,26 @@ def check_godot(c: Checker, binary: Path) -> None:
     print()
 
 
+def resolve_godot(explicit: Path | None) -> Path:
+    """按 参数 → GODOT_BIN → PATH → 开发机默认路径 的顺序找 Godot。"""
+    candidates: list[Path] = []
+    if explicit is not None:
+        candidates.append(explicit)
+    env = os.environ.get("GODOT_BIN", "").strip()
+    if env:
+        candidates.append(Path(env))
+    for name in ("godot", "godot4", "godot.exe", "godot4.exe"):
+        found = shutil.which(name)
+        if found:
+            candidates.append(Path(found))
+            break
+    candidates.append(DEFAULT_GODOT)
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return explicit or Path(env or DEFAULT_GODOT)
+
+
 def main() -> int:
     if sys.platform == "win32":
         # 控制台默认 GBK，中文输出在 Windows Terminal / 管道里统一成 UTF-8
@@ -224,9 +246,9 @@ def main() -> int:
     check_gdscript(c)
 
     if args.godot and not args.fast:
-        binary = args.godot_bin or DEFAULT_GODOT
+        binary = resolve_godot(args.godot_bin)
         if not binary.exists():
-            c.fail("Godot", f"找不到 {binary}，用 --godot-bin 指定")
+            c.fail("Godot", f"找不到 {binary}；用 --godot-bin 或环境变量 GODOT_BIN 指定")
         else:
             check_godot(c, binary)
 

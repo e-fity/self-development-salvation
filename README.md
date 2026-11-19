@@ -3,6 +3,8 @@
 2D 横版动作竖切片，Godot 4.7 / GL Compatibility，灰盒 M1（v0.2）。
 可玩流程：标题页 → 关卡（4 只木桩 / 2 个检查点 / Boss「夜巡」）→ 结算页（S/A/B 评价）→ 重开或回标题。
 
+![结算页](docs/assets/screenshot_results.png)
+
 ## 目录结构
 
 ```
@@ -32,23 +34,26 @@
 │  ├─ docs/                # PRD / 评审 DOCX 生成、编辑器截图标注
 │  ├─ assets/              # 立绘抠图、占位音效生成
 │  └─ archive/             # 已执行的一次性 codemod（仅留档，不再运行）
+├─ .github/workflows/       # CI：只跑静态门禁（不需要 Godot）
 ├─ .githooks/pre-commit    # 提交前静态门禁（需 git config core.hooksPath .githooks）
+├─ LICENSE                 # 代码许可（MIT）
+├─ NOTICE.md               # 素材与文档的版权声明
 └─ README.md
 ```
 
 ## 快速开始
 
 环境：Godot **4.7.x**（工程 features 为 `"4.7"`；PRD 写的是 4.4，升级后未回写文档）。
-本机可用 `D:\Godot\Godot_v4.7.2-stable_win64_console.exe`。
+把 Godot 可执行文件路径写进 `GODOT_BIN`（Windows 的 console 版与图形版都可以）：
 
 ```powershell
-$godot = "D:\Godot\Godot_v4.7.2-stable_win64_console.exe"
+$env:GODOT_BIN = "C:\path\to\Godot_v4.7.2-stable_win64_console.exe"
 
 # 1) 首次导入资源（生成 game/.godot 缓存，可随时删除重建）
-& $godot --headless --path game --import
+& $env:GODOT_BIN --headless --path game --import
 
 # 2) 启动游戏（从标题页开始）
-& $godot --path game
+& $env:GODOT_BIN --path game
 
 # 或者用编辑器打开 game/project.godot 后按 F5
 ```
@@ -56,8 +61,8 @@ $godot = "D:\Godot\Godot_v4.7.2-stable_win64_console.exe"
 单独跑某个场景：
 
 ```powershell
-& $godot --path game res://scenes/levels/level.tscn
-& $godot --path game res://scenes/ui/title.tscn
+& $env:GODOT_BIN --path game res://scenes/levels/level.tscn
+& $env:GODOT_BIN --path game res://scenes/ui/title.tscn
 ```
 
 ## 操作
@@ -81,10 +86,9 @@ $godot = "D:\Godot\Godot_v4.7.2-stable_win64_console.exe"
 冒烟测试不依赖画面与音频设备，覆盖 Data / Save / Results / Player / Enemy / Level / Boss / Audio / Debug：
 
 ```powershell
-$godot = "D:\Godot\Godot_v4.7.2-stable_win64_console.exe"
-$save  = "$PWD\_backup\test-save"
+$save = "$PWD\_backup\test-save"
 $env:SALVATION_SAVE_DIR = $save                                # 隔离存档，避免写真实 user://
-& $godot --headless --path game res://tests/smoke_test.tscn
+& $env:GODOT_BIN --headless --path game res://tests/smoke_test.tscn
 echo $LASTEXITCODE    # 0 = 全过，1 = 有失败项
 ```
 
@@ -98,12 +102,13 @@ python tools/check.py --godot  # 追加冒烟测试与 level/title 场景
 ```
 
 仓库自带 `.githooks/pre-commit`，启用后每次提交自动跑 `--fast`：`git config core.hooksPath .githooks`。
+GitHub Actions 只跑 `python tools/check.py`（静态 12 项，不需要 Godot）；带 Godot 的冒烟与场景回归仍在本地跑。
 
 真窗口自动验收（开窗、注入按键、截图、采帧率，约 40 秒）：
 
 ```powershell
 $env:SALVATION_SHOT_DIR = "$PWD\_backup\shots"
-& $godot --path game res://tests/auto_accept.tscn --resolution 1280x720
+& $env:GODOT_BIN --path game res://tests/auto_accept.tscn --resolution 1280x720
 echo $LASTEXITCODE    # 0 = 24 项全过；截图与 auto_accept.json 在 $SALVATION_SHOT_DIR
 ```
 
@@ -157,3 +162,10 @@ python tools/assets/make_sfx.py            # 重新生成 game/audio 下的占�
 - 角色/敌人/UI 均为代码绘制的灰盒，无 AnimatedSprite2D 与动画资源。
 - `audio/sfx/hit_player.wav` 为素材预留，当前没有代码播放；其余音效均已接入。
 - 其余仍待排期的问题（P2/P3）见[代码审查报告](docs/代码审查报告.md) §7。
+
+## 许可
+
+- 代码（`game/` 下的 `.gd` / `.tscn` / `.json`、`tools/` 下的 Python、根目录配置与脚本）以 **MIT** 发布，见 [LICENSE](LICENSE)。
+- 素材与文档图片（`game/art/`、`game/audio/`、`docs/prd/`、`docs/assets/`）**不在 MIT 范围内**，版权归作者保留，未经许可不得再分发或商用，见 [NOTICE](NOTICE.md)。
+
+> 复用本仓库前请先确认 `game/art/player/` 下立绘素材的授权来源；若你计划公开或商用，建议替换为自己拥有权利的素材。

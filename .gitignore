@@ -15,6 +15,11 @@ game/.godot/
 game/build/
 *.pck
 
+# ---- 本地存档（SALVATION_SAVE_DIR 指到仓库目录时） ----
+save.json
+save.bak
+save.tmp
+
 # ---- 文档工具临时文件 ----
 ~$*.docx
 ~$*.xlsx
