@@ -497,6 +497,14 @@ func _check_level_resume() -> void:
 	_check_eq(int(scene.get("_taken")), 2, "继续后检查点计数为 2")
 	_check_eq(Save.pending_checkpoint, -1, "跳转意图用后清空")
 
+	# HUD 左下角常驻操作提示：教学淡出后还能查键位（H 可隐藏）
+	var hud := scene.get_node_or_null("HUD")
+	_check(hud != null, "关卡里有 HUD")
+	if hud != null:
+		var controls: Label = hud.get("_controls")
+		_check(controls != null and controls.text.contains("Shift 闪避"), "HUD 常驻提示含闪避键")
+		_check(controls != null and controls.visible, "HUD 常驻提示默认可见")
+
 	scene.queue_free()
 	await get_tree().process_frame
 	Save.reset_progress()

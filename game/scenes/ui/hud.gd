@@ -15,8 +15,14 @@ var _boss_bg: ColorRect
 var _boss_label: Label
 var _victory: Label
 var _combo_label: Label
+var _controls: Label
 var _boss_seen := false
 var _victory_time := 0.0
+
+const CONTROLS_TEXT := (
+	"A/D 移动 · 空格 跳跃 · 左键 攻击 · Shift 闪避 · "
+	+ "K 橙闪 · L 逆鳞 · I 零点 · R 重试 · Esc 暂停 · H 隐藏帮助"
+)
 
 
 func _ready() -> void:
@@ -104,6 +110,21 @@ func _ready() -> void:
 	_combo_label.add_theme_constant_override("outline_size", 8)
 	_combo_label.visible = false
 	add_child(_combo_label)
+
+	# 左下角常驻操作提示：教学 3 秒就淡出，忘了按键时按 H 还能找回来
+	_controls = Label.new()
+	_controls.position = Vector2(40, 1040)
+	_controls.size = Vector2(1500, 30)
+	_controls.text = CONTROLS_TEXT
+	_controls.add_theme_font_size_override("font_size", 18)
+	_controls.add_theme_color_override("font_color", Color(0.78, 0.82, 0.9, 0.75))
+	add_child(_controls)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_H:
+		_controls.visible = not _controls.visible
+		get_viewport().set_input_as_handled()
 
 
 func _process(delta: float) -> void:
