@@ -28,7 +28,8 @@
 │  ├─ 架构与逻辑说明.md
 │  ├─ 代码审查报告.md
 │  ├─ 工程规范.md
-│  └─ 代码规约.md
+│  ├─ 代码规约.md
+│  └─ 迭代计划.md
 ├─ tools/
 │  ├─ check.py             # 门禁：静态检查 + 可选 Godot 冒烟
 │  ├─ docs/                # PRD / 评审 DOCX 生成、编辑器截图标注
@@ -153,6 +154,7 @@ python tools/assets/make_sfx.py            # 重新生成 game/audio 下的占�
 - [工程规范](docs/工程规范.md)：目录职责、文件归位、流程与测试要求
 - [代码规约](docs/代码规约.md)：引用 Godot / PEP 8 / Google JSON / Conventional Commits 的代码级规则（MUST/SHOULD）
 - [验收清单](docs/验收清单.md)：PRD 10 条验收到「按键 → 预期现象」的操作步骤，配合 F2–F6 调试键使用
+- [迭代计划](docs/迭代计划.md)：R11–R18 的排期、任务卡、检测体系与审查机制
 - [PRD v0.2 总结](docs/prd/游戏需求文档_v0.2_总结.md)：需求基线（Markdown 版）
 
 ## 已知限制
