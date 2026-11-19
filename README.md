@@ -19,7 +19,7 @@
 │  │  ├─ combat/           # rect_query.gd（木桩与 Boss 共用的矩形判定）
 │  │  ├─ levels/           # level.tscn + level.gd（唯一关卡）
 │  │  └─ ui/               # title / hud / pause_menu / settings_panel / tutorial / debug_panel / results
-│  ├─ art/player/          # 正式立绘 idle.png（由 tools 生成）与 source 原图
+│  ├─ art/player/          # 本地立绘目录（公开仓库不含；缺失时角色回落为占位图形）
 │  ├─ audio/{bgm,sfx}/     # 占位 BGM / 20 个音效
 │  └─ tests/               # 无界面冒烟测试 smoke_test.tscn
 ├─ docs/
@@ -159,13 +159,12 @@ python tools/assets/make_sfx.py            # 重新生成 game/audio 下的占�
 
 - 技能已补齐 K / L / I 三个；手柄、`strings.csv`、`export_presets.cfg` 仍未落地；音效侧 L / I 暂复用重击声，未单独生成素材。
 - 存档已实现 `save.bak` 回滚与目录自动创建；`fsync` 未实现（Godot `FileAccess` 不暴露），验收口径为「主档或 bak 至少一份可用」。
-- 角色/敌人/UI 均为代码绘制的灰盒，无 AnimatedSprite2D 与动画资源。
+- 角色/敌人/UI 均为代码绘制的灰盒，无 AnimatedSprite2D 与动画资源；公开仓库不含角色立绘，未放入 `idle.png` 时角色显示为灰盒占位。
 - `audio/sfx/hit_player.wav` 为素材预留，当前没有代码播放；其余音效均已接入。
 - 其余仍待排期的问题（P2/P3）见[代码审查报告](docs/代码审查报告.md) §7。
 
 ## 许可
 
 - 代码（`game/` 下的 `.gd` / `.tscn` / `.json`、`tools/` 下的 Python、根目录配置与脚本）以 **MIT** 发布，见 [LICENSE](LICENSE)。
-- 素材与文档图片（`game/art/`、`game/audio/`、`docs/prd/`、`docs/assets/`）**不在 MIT 范围内**，版权归作者保留，未经许可不得再分发或商用，见 [NOTICE](NOTICE.md)。
-
-> 复用本仓库前请先确认 `game/art/player/` 下立绘素材的授权来源；若你计划公开或商用，建议替换为自己拥有权利的素材。
+- 素材与文档图片（`game/audio/`、`docs/prd/`、`docs/assets/`）**不在 MIT 范围内**，版权归作者保留，未经许可不得再分发或商用，见 [NOTICE](NOTICE.md)。
+- **本仓库不包含角色立绘**：`game/art/player/` 已被 `.gitignore` 排除（AI 生成素材仅本地保留）。缺失时 `player.gd` 会自动回落到灰盒 Body/Eye 占位图形，游戏与测试都能正常跑；如需启用立绘，把 `idle.png` 放回该目录即可。

@@ -20,6 +20,13 @@ save.json
 save.bak
 save.tmp
 
+# ---- 未公开素材（AI 立绘与含立绘的截图，仅本地保留） ----
+game/art/player/
+docs/assets/套模效果_关卡内.png
+docs/assets/小怪出手效果.png
+docs/assets/editor_source.png
+docs/assets/editor_标注.png
+
 # ---- 文档工具临时文件 ----
 ~$*.docx
 ~$*.xlsx
