@@ -1,6 +1,6 @@
 extends Control
-## 标题页：开始 / 继续 / 退出
-## 继续按钮只在有通关记录时可用（读 Save.data）
+## 标题页：开始 / 继续 / 设置 / 退出
+## 「继续」只在有进行中的检查点进度时可用；「开始游戏」会清空进度重开
 
 const LEVEL_SCENE := "res://scenes/levels/level.tscn"
 const SETTINGS_PANEL := preload("res://scenes/ui/settings_panel.gd")
@@ -72,7 +72,7 @@ func _build() -> void:
 	box.add_child(_start_btn)
 
 	_continue_btn = _make_button("继续", 22, Color(0.16, 0.18, 0.24))
-	_continue_btn.pressed.connect(_on_start)
+	_continue_btn.pressed.connect(_on_continue)
 	box.add_child(_continue_btn)
 
 	var settings_btn := _make_button("设置", 22, Color(0.16, 0.18, 0.24))
@@ -118,19 +118,29 @@ func _make_button(text: String, font_size: int, color: Color) -> Button:
 	return b
 
 
-## 有通关记录时，「继续」显示存档摘要
+## 「继续」显示可恢复的检查点；没有进度时禁用
 func _report_state() -> void:
-	var clears := int(Save.data.get("clears", 0))
-	if clears <= 0:
-		_continue_btn.text = "继续（暂无记录）"
+	if not Save.has_progress():
+		_continue_btn.text = "继续（没有进行中的进度）"
 		_continue_btn.disabled = true
 		return
-	var grade := String(Save.data.get("best_grade", "—"))
-	var gold := int(Save.data.get("gold", 0))
-	_continue_btn.text = "继续  ·  最好 %s  ·  %d 金币  ·  第 %d 次" % [grade, gold, clears]
+	var index := Save.checkpoint()
+	_continue_btn.text = "继续  ·  第 %d 检查点  ·  %d 金币" % [
+		index + 1, int(Save.data.get("gold", 0))]
+	_continue_btn.disabled = false
 
 
 func _on_start() -> void:
+	# 新开一局：清掉上次的检查点进度，否则关卡会从老位置开始
+	Save.reset_progress()
+	Save.pending_checkpoint = -1
+	get_tree().change_scene_to_file(LEVEL_SCENE)
+
+
+func _on_continue() -> void:
+	if not Save.has_progress():
+		return
+	Save.pending_checkpoint = Save.checkpoint()
 	get_tree().change_scene_to_file(LEVEL_SCENE)
 
 

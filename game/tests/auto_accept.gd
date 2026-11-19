@@ -100,14 +100,14 @@ func _stage_combo() -> void:
 	player.set("_facing", 1)
 	await _wait(0.25)
 	var hp0: float = dummy.get("hp")
-	# 按人类节奏：第二段在首段收招前 0.1s 内按下，第三段在第二段收招前按下
+	# 用「连点」模拟人类节奏：间隔 0.12s，落在每段收招前 0.15s 的缓冲窗口里。
+	# 早期按下的会被丢弃（PRD 只缓冲收招前 0.15s），所以按密一点最稳。
 	_tap("attack")
-	await _wait(0.25)
+	await _wait(0.26)
 	await _shot("03_hit.png")
-	await _wait(0.10)
-	_tap("attack")
-	await _wait(0.55)
-	_tap("attack")
+	for i in 7:
+		_tap("attack")
+		await _wait(0.12)
 	await _wait(1.0)
 	combo_damage = hp0 - float(dummy.get("hp"))
 	_check(combo_damage >= 30.0, "三连伤害 ≥30（实测 %.0f）" % combo_damage)
@@ -171,6 +171,7 @@ func _stage_boss() -> void:
 		return
 	Debug.warp_to_boss()
 	await _wait(1.2)
+	_check(Save.checkpoint() >= 0, "经过检查点后写入存档（实测 %d）" % Save.checkpoint())
 	boss_engaged = bool(boss.get("active"))
 	_check(boss_engaged, "玩家靠近后 Boss 激活")
 	await _shot("06_boss.png")

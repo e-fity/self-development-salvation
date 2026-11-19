@@ -27,10 +27,13 @@ func _ready() -> void:
 
 	_check_data()
 	_check_save()
+	_check_progress()
 	_check_results()
 	await _check_player()
 	await _check_enemy()
 	_check_level()
+	await _check_level_resume()
+	await _check_title_continue()
 	await _check_boss()
 	_check_audio()
 	await _check_debug()
@@ -167,6 +170,52 @@ func _check_save() -> void:
 	_check_eq(int(Save.data.get("clears", 0)), 2, "通关次数累加")
 	_check_eq(String(Save.data.get("best_grade", "")), "A", "评价只升不降")
 	_check_eq(float(Save.data.get("best_time", 0.0)), 120.0, "最快用时取最小")
+
+	Save.data = backup
+	Save.save_data()
+
+
+# ---------------- Save：检查点进度（R11） ----------------
+func _check_progress() -> void:
+	print("[Save] 检查点进度")
+	var backup: Dictionary = Save.data.duplicate(true)
+
+	Save.data = Save.default_data()
+	Save.save_data()
+	_check_eq(Save.checkpoint(), -1, "默认没有检查点进度")
+	_check(not Save.has_progress(), "默认没有可继续的进度")
+
+	Save.save_progress(0, false)
+	_check_eq(Save.checkpoint(), 0, "记录第一个检查点")
+	Save.load_data()
+	_check_eq(Save.checkpoint(), 0, "检查点进度写入后能读回")
+	_check(Save.has_progress(), "有进度时 has_progress 为真")
+
+	Save.save_progress(0, true)
+	Save.load_data()
+	_check(Save.shrine_taken(), "神龛已领取标记能读回")
+
+	# 旧版 v1 存档没有 progress 字段：迁移后补默认值，旧字段不能丢
+	_write_json(Save.abs_save_path(), {"version": 1, "gold": 42})
+	Save.load_data()
+	_check_eq(int(Save.data.get("version", 0)), 2, "v1 存档迁移到 v2")
+	_check_eq(int(Save.data.get("gold", 0)), 42, "迁移保留旧字段")
+	_check_eq(Save.checkpoint(), -1, "迁移补出默认进度")
+
+	# progress 被写坏时整段回落默认，不能崩
+	_write_json(Save.abs_save_path(), {"version": 2, "progress": "坏"})
+	Save.load_data()
+	_check_eq(typeof(Save.data.get("progress")), TYPE_DICTIONARY, "progress 非字典回落默认")
+	_check_eq(Save.checkpoint(), -1, "坏 progress 的检查点用默认值")
+
+	# 通关记账要清空进行中的进度，避免下次「继续」回到已通关的关卡
+	Save.save_progress(1, true)
+	Save.record_run(100.0, "A", 0)
+	_check(not Save.has_progress(), "通关后清空进行中进度")
+
+	Save.save_progress(0, false)
+	Save.reset_progress()
+	_check(not Save.has_progress(), "reset_progress 清空进度")
 
 	Save.data = backup
 	Save.save_data()
@@ -363,7 +412,77 @@ func _check_level() -> void:
 	_check_eq(probe.checkpoints[1], 1600.0, "第二个检查点位置取自场景")
 	probe.free()
 
+	# R11：过检查点写档、神龛只记一次、恢复位置可校验
+	Save.data = Save.default_data()
+	Save.save_data()
+	var runner = load("res://scenes/levels/level.gd").new()
+	runner.checkpoints.assign([600.0, 1600.0])
+	runner.call("_record_checkpoint", 0)
+	_check_eq(Save.checkpoint(), 0, "过检查点写入存档")
+	_check_eq(runner.respawn_point, Vector2(600, 0), "重生点取检查点位置")
+	_check_eq(int(runner.get("_taken")), 1, "检查点计数前移")
+	runner.call("_record_checkpoint", 1)
+	_check(Save.shrine_taken(), "神龛领取标记落盘")
+
+	var resumed = load("res://scenes/levels/level.gd").new()
+	resumed.checkpoints.assign([600.0, 1600.0])
+	_check(resumed.call("_apply_resume", 1), "恢复索引合法")
+	_check_eq(resumed.respawn_point, Vector2(1600, 0), "恢复后重生点正确")
+	_check_eq(int(resumed.get("_taken")), 2, "恢复后检查点计数正确")
+	_check(not resumed.call("_apply_resume", 9), "越界索引被拒绝")
+	resumed.free()
+	runner.free()
+	Save.reset_progress()
+
 	level.free()
+
+
+# ---------------- Level：从存档继续（R11） ----------------
+func _check_level_resume() -> void:
+	print("[Level] 从存档继续")
+	Save.data = Save.default_data()
+	Save.save_progress(1, false)
+	Save.pending_checkpoint = 1
+
+	var scene: Node = load("res://scenes/levels/level.tscn").instantiate()
+	add_child(scene)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+	var player := get_tree().get_first_node_in_group("player") as Node2D
+	_check(player != null, "关卡里能找到玩家")
+	if player != null:
+		_check(
+				absf(player.global_position.x - 1600.0) < 1.0,
+				"继续时玩家落在第二个检查点（x 实际 %.0f）" % player.global_position.x)
+	_check_eq(int(scene.get("_taken")), 2, "继续后检查点计数为 2")
+	_check_eq(Save.pending_checkpoint, -1, "跳转意图用后清空")
+
+	scene.queue_free()
+	await get_tree().process_frame
+	Save.reset_progress()
+
+
+# ---------------- Title：继续按钮（R11） ----------------
+func _check_title_continue() -> void:
+	print("[Title] 继续按钮状态")
+	Save.data = Save.default_data()
+	var title: Node = load("res://scenes/ui/title.tscn").instantiate()
+	add_child(title)
+	await get_tree().process_frame
+
+	var btn: Button = title.get("_continue_btn")
+	title.call("_report_state")
+	_check(btn.disabled, "没有进度时「继续」禁用")
+
+	Save.save_progress(0, false)
+	title.call("_report_state")
+	_check(not btn.disabled, "有进度时「继续」可用")
+	_check(String(btn.text).contains("第 1 检查点"), "继续按钮显示检查点序号")
+
+	title.queue_free()
+	await get_tree().process_frame
+	Save.reset_progress()
 
 
 # ---------------- Audio ----------------

@@ -22,6 +22,7 @@ var _boss: Node2D
 func _ready() -> void:
 	add_to_group("level")
 	_collect_checkpoints()
+	_resume_if_needed()
 	Audio.start_music()
 
 
@@ -50,9 +51,51 @@ func tick(delta: float) -> void:
 
 
 func _find_player() -> Node2D:
-	if not is_instance_valid(_player):
+	if not is_instance_valid(_player) and is_inside_tree():
 		_player = get_tree().get_first_node_in_group("player") as Node2D
 	return _player
+
+
+## 从存档恢复到某个检查点：先把玩家放到重生点，再继续跑关卡
+func _resume_if_needed() -> void:
+	var index := Save.pending_checkpoint
+	Save.pending_checkpoint = -1
+	if index < 0:
+		return
+	if not _apply_resume(index):
+		push_warning("[关卡] 存档检查点 %d 超出场景范围，从头开始" % index)
+		return
+	var player := _find_player()
+	if player != null:
+		player.global_position = respawn_point
+	print("[关卡] 从检查点 %d 继续（x=%.0f）" % [index, respawn_point.x])
+
+
+## 把检查点下标应用成重生点；越界返回 false（场景改短后旧档不应崩）
+func _apply_resume(index: int) -> bool:
+	if index < 0 or index >= checkpoints.size():
+		return false
+	respawn_point = Vector2(checkpoints[index], 0.0)
+	_taken = index + 1
+	return true
+
+
+## 记录一个检查点：更新重生点、写档；最后一个检查点是神龛（只回满一次）
+func _record_checkpoint(index: int) -> void:
+	if not _apply_resume(index):
+		return
+	print("[检查点] 记录 x=%.0f" % respawn_point.x)
+	var shrine := index == checkpoints.size() - 1
+	if shrine and not Save.shrine_taken():
+		var player := _find_player()
+		if player != null:
+			player.hp = player.max_hp
+			if "energy" in player:
+				player.energy = player.max_energy
+			print("[神龛] 血与能量已回满")
+		Save.save_progress(index, true)
+	else:
+		Save.save_progress(index, Save.shrine_taken())
 
 
 func _track_checkpoints() -> void:
@@ -61,14 +104,7 @@ func _track_checkpoints() -> void:
 		return
 
 	while _taken < checkpoints.size() and player.global_position.x >= checkpoints[_taken]:
-		respawn_point = Vector2(checkpoints[_taken], 0.0)
-		_taken += 1
-		print("[检查点] 记录 x=%.0f" % respawn_point.x)
-		if _taken >= checkpoints.size():
-			player.hp = player.max_hp
-			if "energy" in player:
-				player.energy = player.max_energy
-			print("[神龛] 血与能量已回满")
+		_record_checkpoint(_taken)
 
 
 func _track_boss() -> void:

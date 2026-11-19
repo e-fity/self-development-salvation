@@ -1,7 +1,7 @@
 # 自我开发——拯救（Self-Development: Salvation）
 
 2D 横版动作竖切片，Godot 4.7 / GL Compatibility，灰盒 M1（v0.2）。
-可玩流程：标题页 → 关卡（4 只木桩 / 2 个检查点 / Boss「夜巡」）→ 结算页（S/A/B 评价）→ 重开或回标题。
+可玩流程：标题页（开始 / 继续）→ 关卡（4 只木桩 / 2 个检查点自动存档 / Boss「夜巡」）→ 结算页（S/A/B 评价）→ 重开或回标题。
 
 ![结算页](docs/assets/screenshot_results.png)
 
@@ -93,7 +93,7 @@ $env:SALVATION_SAVE_DIR = $save                                # 隔离存档，
 echo $LASTEXITCODE    # 0 = 全过，1 = 有失败项
 ```
 
-当前基线：**106 项断言全部通过，退出码 0**。测试会先删掉并重建 `SALVATION_SAVE_DIR` 目录，顺带验证「目录不存在时自动创建」；若该路径不可写，Save 组会失败（属环境问题）。
+当前基线：**134 项断言全部通过，退出码 0**。测试会先删掉并重建 `SALVATION_SAVE_DIR` 目录，顺带验证「目录不存在时自动创建」；若该路径不可写，Save 组会失败（属环境问题）。
 
 一键门禁（静态检查 + 可选 Godot 冒烟）：
 
@@ -110,10 +110,10 @@ GitHub Actions 只跑 `python tools/check.py`（静态 12 项，不需要 Godot�
 ```powershell
 $env:SALVATION_SHOT_DIR = "$PWD\_backup\shots"
 & $env:GODOT_BIN --path game res://tests/auto_accept.tscn --resolution 1280x720
-echo $LASTEXITCODE    # 0 = 24 项全过；截图与 auto_accept.json 在 $SALVATION_SHOT_DIR
+echo $LASTEXITCODE    # 0 = 25 项全过；截图与 auto_accept.json 在 $SALVATION_SHOT_DIR
 ```
 
-它覆盖按键到起手、三连伤害、闪避位移、L/I 技能、Boss 激活、结算与帧率；听感与手感仍需按[验收清单](docs/验收清单.md)人工确认。
+它覆盖按键到起手、三连伤害、闪避位移、L/I 技能、检查点写档、Boss 激活、结算与帧率；听感与手感仍需按[验收清单](docs/验收清单.md)人工确认。
 
 ## 数值调参
 
@@ -131,7 +131,8 @@ echo $LASTEXITCODE    # 0 = 24 项全过；截图与 auto_accept.json 在 $SALVA
 - 默认路径：`%APPDATA%\Godot\app_userdata\salvation\save.json`，上一份为 `save.bak`
 - 环境变量 `SALVATION_SAVE_DIR` 可把存档重定向到任意目录（自动化测试/沙箱用）；目录不存在时会自动创建
 - 写档顺序：`save.tmp` → 旧档改名 `save.bak` → tmp 改名主档；任一步失败保留旧档，主档损坏时读 `save.bak`
-- 存档字段：`version / gold / best_grade / best_time / clears / settings{bgm,sfx,shake,numbers,tutorial}`；字段类型异常按默认值丢弃，不会崩
+- **检查点自动存档（R11）**：踩到检查点即写档（`progress.checkpoint`），最后一个检查点「神龛」额外记录 `progress.shrine_taken` 并只回满一次血与能量；标题页「继续」从该检查点开始，「开始游戏」清空进度重开；通关后进度自动清空
+- 存档字段：`version / gold / best_grade / best_time / clears / settings{bgm,sfx,shake,numbers,tutorial} / progress{checkpoint,shrine_taken}`；`version` 已升到 2，v1 旧档自动补默认进度；字段类型异常按默认值丢弃，不会崩
 
 ## 工具链
 

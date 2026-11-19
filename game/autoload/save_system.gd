@@ -9,7 +9,7 @@ extends Node
 ## 调试便利：设置环境变量 SALVATION_SAVE_DIR 可把存档改到指定目录
 ## （沙箱里 user:// 不可写时，用它把存档指到工程内）。
 
-const VERSION := 1
+const VERSION := 2
 const SAVE_NAME := "save.json"
 const TMP_NAME := "save.tmp"
 const BAK_NAME := "save.bak"
@@ -18,6 +18,9 @@ const BAK_NAME := "save.bak"
 const GRADE_RANK := {"": 0, "B": 1, "A": 2, "S": 3}
 
 var data: Dictionary = {}
+
+## 只存在内存里的跳转意图：标题页按「继续」时写入，关卡 _ready 读完清空
+var pending_checkpoint := -1
 
 var _dir := "user://"
 var _save_path := "user://save.json"
@@ -49,6 +52,46 @@ func abs_bak_path() -> String:
 	return ProjectSettings.globalize_path(_bak_path)
 
 
+## 进行中的关卡进度：已到达的检查点下标，-1 表示没有进度
+func checkpoint() -> int:
+	var p: Variant = data.get("progress", {})
+	if typeof(p) != TYPE_DICTIONARY:
+		return -1
+	return maxi(int(p.get("checkpoint", -1)), -1)
+
+
+## 神龛（最后一个检查点）是否已经领过回满
+func shrine_taken() -> bool:
+	var p: Variant = data.get("progress", {})
+	if typeof(p) != TYPE_DICTIONARY:
+		return false
+	return bool(p.get("shrine_taken", false))
+
+
+func has_progress() -> bool:
+	return checkpoint() >= 0
+
+
+## 到达检查点立刻落盘：下次「继续」能回到这里
+func save_progress(index: int, shrine: bool) -> void:
+	_write_progress(index, shrine)
+	save_data()
+
+
+## 新开一局或通关后清空进度；save_now=false 时由调用方统一写盘
+func reset_progress(save_now := true) -> void:
+	_write_progress(-1, false)
+	if save_now:
+		save_data()
+
+
+func _write_progress(index: int, shrine: bool) -> void:
+	data["progress"] = {
+		"checkpoint": maxi(index, -1),
+		"shrine_taken": shrine,
+	}
+
+
 func default_data() -> Dictionary:
 	return {
 		"version": VERSION,
@@ -57,6 +100,8 @@ func default_data() -> Dictionary:
 		"best_time": 0.0,
 		"clears": 0,
 		"settings": {"bgm": 1.0, "sfx": 1.0, "shake": 1.0, "numbers": true, "tutorial": true},
+		# 进行中的关卡进度：checkpoint 是已到达的检查点下标（-1 = 没有进度）
+		"progress": {"checkpoint": -1, "shrine_taken": false},
 	}
 
 
@@ -102,12 +147,14 @@ func _read_json_file(path: String) -> Dictionary:
 func _apply_loaded(loaded: Dictionary) -> void:
 	# 只认已知字段；类型不对的字段丢弃并用默认值，避免把 "abc" 写进 gold 之类
 	for key in data.keys():
-		if key == "settings" or not loaded.has(key):
+		if key == "settings" or key == "progress" or not loaded.has(key):
 			continue
 		data[key] = _typed_value(loaded[key], data[key], "顶层字段 %s" % key)
 
 	if loaded.has("settings"):
 		_apply_settings(loaded["settings"])
+	if loaded.has("progress"):
+		_apply_progress(loaded["progress"])
 
 
 ## settings 是嵌套字典：缺键补默认值，类型不对的键丢弃
@@ -122,6 +169,21 @@ func _apply_settings(incoming: Variant) -> void:
 			continue
 		merged[key] = _typed_value(incoming[key], merged[key], "settings.%s" % key)
 	data["settings"] = merged
+
+
+## progress 是嵌套字典：缺键补默认值，类型不对的键丢弃
+func _apply_progress(incoming: Variant) -> void:
+	if typeof(incoming) != TYPE_DICTIONARY:
+		push_warning("[存档] progress 不是字典（%s），使用默认进度" % type_string(typeof(incoming)))
+		return
+	if typeof(data.get("progress")) != TYPE_DICTIONARY:
+		data["progress"] = default_data()["progress"]
+	var merged: Dictionary = data["progress"]
+	for key in merged.keys():
+		if not incoming.has(key):
+			continue
+		merged[key] = _typed_value(incoming[key], merged[key], "progress.%s" % key)
+	data["progress"] = merged
 
 
 ## 类型一致才接受；int/float 互认（JSON 数字都是 float）；其余保留默认值并告警
@@ -144,11 +206,22 @@ func _is_number(v: Variant) -> bool:
 ## 版本迁移入口：以后加字段时在这里补
 func _migrate(d: Dictionary) -> Dictionary:
 	var version := int(d.get("version", 0))
-	if version < 1:
+	if version < VERSION:
 		d["version"] = VERSION
 	if version > VERSION:
 		push_warning("[存档] 存档版本比游戏新（%d），按当前版本读取" % version)
 		d["version"] = VERSION
+
+	# v1 → v2：旧档没有 progress 段，补默认值，不能因为缺键读成空进度
+	var base: Dictionary = default_data()["progress"]
+	var p: Variant = d.get("progress")
+	if typeof(p) != TYPE_DICTIONARY:
+		d["progress"] = base
+	else:
+		for key in base.keys():
+			if not p.has(key):
+				p[key] = base[key]
+		d["progress"] = p
 	return d
 
 
@@ -216,6 +289,8 @@ func record_run(time_s: float, grade: String, gold_earned: int) -> void:
 	if best_time <= 0.0 or time_s < best_time:
 		data["best_time"] = time_s
 
+	# 通关即清空进行中进度，避免下次「继续」回到已经打完的关卡
+	_write_progress(-1, false)
 	save_data()
 
 
