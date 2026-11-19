@@ -24,8 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 GAME = ROOT / "game"
 DATA = GAME / "data"
-# 最后才回落到开发机路径；优先 GODOT_BIN 与 PATH，避免别人 clone 后门禁直接失败
-DEFAULT_GODOT = Path(r"D:\Godot\Godot_v4.7.2-stable_win64_console.exe")
+# Godot 路径完全由 --godot-bin / GODOT_BIN / PATH 决定，不写死开发机路径
 
 MAX_GD_LINE = 100
 TEXT_SUFFIXES = {".gd", ".tscn", ".tres", ".json", ".md", ".py", ".cfg", ".godot"}
@@ -204,7 +203,7 @@ def check_godot(c: Checker, binary: Path) -> None:
 
 
 def resolve_godot(explicit: Path | None) -> Path:
-    """按 参数 → GODOT_BIN → PATH → 开发机默认路径 的顺序找 Godot。"""
+    """按 参数 → GODOT_BIN → PATH 的顺序找 Godot；找不到时返回待报错的路径。"""
     candidates: list[Path] = []
     if explicit is not None:
         candidates.append(explicit)
@@ -216,11 +215,10 @@ def resolve_godot(explicit: Path | None) -> Path:
         if found:
             candidates.append(Path(found))
             break
-    candidates.append(DEFAULT_GODOT)
     for candidate in candidates:
         if candidate.exists():
             return candidate
-    return explicit or Path(env or DEFAULT_GODOT)
+    return explicit or Path(env or "godot")
 
 
 def main() -> int:
