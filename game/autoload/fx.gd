@@ -11,11 +11,14 @@ var _stop_token := 0
 
 
 ## 打中目标时调用一次：命中停顿 + 震屏（多目标时传最大的那段伤害）
-func impact(dmg: float, with_sound := true) -> void:
+## stop_override > 0 时用它代替按伤害分档的停顿（技能可以配置轻/重）
+func impact(dmg: float, with_sound := true, stop_override := -1.0) -> void:
 	var tier := _tier(dmg)
 	if with_sound:
 		Audio.play_hit(dmg)
 	var stop_ms: float = [40.0, 55.0, 80.0][tier] * hitstop_scale
+	if stop_override > 0.0:
+		stop_ms = stop_override * 1000.0 * hitstop_scale
 	var amp: float = [2.0, 4.0, 6.0][tier] * shake_scale * shake_tune
 
 	_hit_stop(stop_ms / 1000.0)

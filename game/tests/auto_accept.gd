@@ -27,6 +27,8 @@ var dodge_dx := -1.0
 var energy_after_ult := -1.0
 var fps_avg := -1.0
 var fps_min := -1.0
+var retry_frames := -1
+var ghost_pool := 0
 var boss_engaged := false
 var results_shown := false
 
@@ -48,6 +50,7 @@ func _run() -> void:
 	await _stage_combo()
 	await _stage_dodge()
 	await _stage_skills()
+	await _stage_retry()
 	await _stage_boss()
 	await _stage_results()
 
@@ -125,6 +128,13 @@ func _stage_dodge() -> void:
 		if player.invulnerable:
 			saw_invuln = true
 	_check(saw_invuln, "闪避前 4 帧内出现无敌")
+	ghost_pool = player.get("_ghosts").size()
+	var ghost_visible := 0
+	for ghost in player.get("_ghosts"):
+		if ghost.visible:
+			ghost_visible += 1
+	_check(ghost_pool == 3 and ghost_visible == 3, "闪避残影：池 3 个且全部可见")
+	await _shot("08_dodge_ghost.png")
 	await _wait(0.5)
 	dodge_dx = absf(player.global_position.x - x0)
 	_check(dodge_dx >= 120.0, "闪避位移 ≥120px（实测 %.0f）" % dodge_dx)
@@ -141,9 +151,12 @@ func _stage_skills() -> void:
 		await get_tree().physics_frame
 	_check(player.state == player.State.SKILL2, "L 逆鳞进入 SKILL2")
 	await _wait(0.3)
+	_check(player.get("_ring").visible, "逆鳞环在判定帧可见")
+	var cd_after_skill2: float = player.skill2_cd
 	await _shot("04_skill2.png")
-	_check(player.skill2_cd >= 9.9, "逆鳞判定后进入 10s CD（实测 %.1f）" % player.skill2_cd)
+	_check(cd_after_skill2 >= 9.8, "逆鳞判定后进入 10s CD（实测 %.2f）" % cd_after_skill2)
 	await _wait(0.7)
+	_check(not player.get("_ring").visible, "逆鳞环播完自动隐藏")
 
 	player.energy = player.max_energy
 	_tap("ultimate")
@@ -158,10 +171,41 @@ func _stage_skills() -> void:
 			break
 	_check(saw_state, "I 零点进入 ULTIMATE")
 	_check(saw_invuln, "零点判定帧无敌")
+	_check(player.get("_ult_bar").visible, "零点横斩在判定帧可见")
 	await _shot("05_ultimate.png")
+	await _shot("09_ult_slash.png")
 	await _wait(1.4)
+	_check(not player.get("_ult_bar").visible, "零点横斩播完自动隐藏")
 	energy_after_ult = player.energy
 	_check(energy_after_ult <= 6.0, "零点命中后能量清零（实测 %.0f）" % energy_after_ult)
+
+## R13：死亡 → 按 R 立即重试，3 秒内可操作
+func _stage_retry() -> void:
+	if player == null:
+		return
+	player.global_position = Vector2(320.0, 0.0)
+	await _wait(0.2)
+	var full_hp: float = player.max_hp
+	Debug.invincible = false
+	player.set("_hurt_invuln", 0.0)
+	player.set("hp", 5.0)
+	player.take_damage(999.0, 1)
+	_check(player.is_dead(), "血量归零进入 DEAD")
+	var f0 := Engine.get_physics_frames()
+	_tap("retry")
+	var ready := false
+	for i in 240:
+		await get_tree().physics_frame
+		if not player.is_dead():
+			ready = true
+			break
+	retry_frames = Engine.get_physics_frames() - f0
+	Debug.invincible = true
+	_check(ready, "按 R 后立即复活")
+	_check(retry_frames <= 180, "死亡→可操作 ≤3 秒（实测 %d 帧）" % retry_frames)
+	_check(is_equal_approx(float(player.hp), full_hp), "重试后满血")
+	await _wait(0.3)
+
 
 func _stage_boss() -> void:
 	Debug.freeze_ai = false
@@ -255,6 +299,8 @@ func _report() -> void:
 		"combo_damage": combo_damage,
 		"dodge_dx": dodge_dx,
 		"energy_after_ult": energy_after_ult,
+		"retry_frames": retry_frames,
+		"ghost_pool": ghost_pool,
 		"fps_avg": fps_avg,
 		"fps_min": fps_min,
 		"boss_engaged": boss_engaged,

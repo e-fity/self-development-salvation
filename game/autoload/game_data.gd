@@ -24,10 +24,10 @@ const DEFAULT_PLAYER := {
 	"energy": {"max": 100.0, "on_hit": 6.0, "on_kill": 15.0, "on_damage": 10.0},
 	"skill2": {"frames": 10, "startup": 3, "active": 1, "recover": 6,
 		"radius": 120.0, "mult": 1.2, "knockback": 120.0,
-		"cooldown": 10.0, "armor_time": 2.0},
+		"cooldown": 10.0, "armor_time": 2.0, "hitstop": 0.04},
 	"ultimate": {"frames": 24, "startup": 6, "active": 6, "recover": 12,
 		"mult": 4.0, "combo_bonus": 0.005, "combo_bonus_cap": 1.0,
-		"knockback": 160.0, "width": 4800.0, "height": 2400.0},
+		"knockback": 160.0, "width": 4800.0, "height": 2400.0, "hitstop": 0.08},
 	"attacks": [
 		{"startup": 2, "active": 1, "recover": 3, "mult": 1.0, "knockback": 60.0},
 		{"startup": 2, "active": 1, "recover": 3, "mult": 1.0, "knockback": 60.0},

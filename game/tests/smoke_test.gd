@@ -252,6 +252,8 @@ func _check_player() -> void:
 	_check_eq(float(player.combo_reset_time), 3.0, "feedback 连击窗口取自 player.json")
 	_check_eq(float(player.skill2_cooldown), 10.0, "逆鳞冷却取自 player.json")
 	_check_eq(float(player.ult_mult), 4.0, "零点倍率取自 player.json")
+	_check_eq(float(player.skill2_hitstop), 0.04, "逆鳞顿帧取自 player.json")
+	_check_eq(float(player.ult_hitstop), 0.08, "零点顿帧取自 player.json")
 
 	# 能量：初始 0、命中 +6、上限 100、受击 −10（PRD 4.5）
 	_check_eq(float(player.energy), 0.0, "初始能量为 0")
@@ -313,6 +315,25 @@ func _check_player() -> void:
 	_check(is_equal_approx(player.visual.modulate.r, 1.0), "闪避中红闪到期后不再泛红")
 	await get_tree().create_timer(0.3, true, false, true).timeout
 	_check(is_equal_approx(player.visual.modulate.a, 1.0), "闪避结束后恢复不透明")
+
+	# R12：特效节点预建、播放可见、播完隐藏；残影池固定 3 个
+	_check(player.get("_ring") != null and player.get("_ult_bar") != null, "逆鳞环与零点横斩已预建")
+	_check_eq(player.get("_ghosts").size(), 3, "残影池固定 3 个")
+	player.call("_play_ring")
+	player.call("_play_ult_bar")
+	_check(player.get("_ring").visible and player.get("_ult_bar").visible, "技能特效播放时可见")
+	await get_tree().create_timer(0.45, true, false, true).timeout
+	_check(
+			not player.get("_ring").visible and not player.get("_ult_bar").visible,
+			"技能特效播完自动隐藏"
+	)
+	player.call("_start_dodge", 1)
+	await get_tree().physics_frame
+	var ghost_visible := 0
+	for ghost in player.get("_ghosts"):
+		if ghost.visible:
+			ghost_visible += 1
+	_check_eq(ghost_visible, 3, "闪避时 3 个残影可见")
 
 	# 输入缓冲：只在硬直结束前 0.15s 内接受（PRD 5.3）
 	player.set("_air_mode", false)
@@ -423,6 +444,24 @@ func _check_level() -> void:
 	_check_eq(int(runner.get("_taken")), 1, "检查点计数前移")
 	runner.call("_record_checkpoint", 1)
 	_check(Save.shrine_taken(), "神龛领取标记落盘")
+
+	# R13：Boss 战阵亡回到神龛并回满；非 Boss 战不额外回能量
+	var fake := FakePlayer.new()
+	runner.add_child(fake)
+	runner.set("_boss_seen", true)
+	var stub_boss := DeadBoss.new()
+	runner.add_child(stub_boss)
+	runner.set("_boss", stub_boss)
+	runner.call("on_player_respawn", fake)
+	_check_eq(fake.hp, 100.0, "Boss 战复活回满血")
+	_check_eq(fake.energy, 100.0, "Boss 战复活回满能量")
+	runner.set("_boss_seen", false)
+	fake.hp = 10.0
+	fake.energy = 10.0
+	runner.call("on_player_respawn", fake)
+	_check_eq(fake.energy, 10.0, "非 Boss 战复活不额外回能量")
+	stub_boss.free()
+	fake.free()
 
 	var resumed = load("res://scenes/levels/level.gd").new()
 	resumed.checkpoints.assign([600.0, 1600.0])
@@ -621,3 +660,20 @@ class ArmedTarget:
 	extends Node2D
 
 	var defense := 5.0
+
+
+## 关卡回满逻辑用的假玩家：只需要 hp / energy 两组字段
+class FakePlayer:
+	extends Node2D
+
+	var hp := 10.0
+	var max_hp := 100.0
+	var energy := 0.0
+	var max_energy := 100.0
+
+
+## 关卡判断「Boss 还活着」用的假 Boss
+class DeadBoss:
+	extends Node2D
+
+	var _dead := false

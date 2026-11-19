@@ -60,6 +60,7 @@ var skill2_mult := 1.2
 var skill2_knockback := 120.0
 var skill2_cooldown := 10.0
 var skill2_armor := 2.0
+var skill2_hitstop := 0.04
 
 # 零点（I）：24 帧，1–6 起手 / 7–12 判定+无敌 / 13–24 收招，倍率 4.0 + 连击加成
 var ult_frames := 24
@@ -72,6 +73,7 @@ var ult_combo_cap := 1.0
 var ult_knockback := 160.0
 var ult_width := 4800.0
 var ult_height := 2400.0
+var ult_hitstop := 0.08
 
 @export var attack_power := 12.0        # PRD：ATK 初始 12
 @export var hitbox_size := Vector2(100, 130)
@@ -135,6 +137,17 @@ var _rect := RectQuery.new()
 const ART_IDLE := "res://art/player/idle.png"
 const ART_HEIGHT := 180.0
 
+# 战斗反馈（R12）：逆鳞环、零点横斩、闪避残影全部预建，运行时只切 visible / tween
+const GHOST_POOL := 3
+const GHOST_LIFETIME := 0.28
+const ULT_BAR_WIDTH := 2600.0
+const ULT_BAR_HEIGHT := 180.0
+const ULT_BAR_Z := 40                 # 压在 HUD（layer 10）之下，不遮 Boss 血条
+var _ring: Line2D
+var _ult_bar: Polygon2D
+var _ghosts: Array[Polygon2D] = []
+var _respawn_seq := 0
+
 @onready var visual: Node2D = $Visual
 @onready var slash: Polygon2D = $Visual/Slash
 
@@ -143,6 +156,96 @@ func _ready() -> void:
 	_load_data()
 	slash.visible = false
 	_apply_art()
+	_build_fx()
+
+
+## 预建战斗反馈节点：环 / 横斩 / 残影池，避免出招时每帧 new
+func _build_fx() -> void:
+	_ring = Line2D.new()
+	_ring.name = "Skill2Ring"
+	_ring.width = 12.0
+	_ring.default_color = Color(1.0, 0.55, 0.15, 0.9)
+	_ring.z_index = 20
+	_ring.position = Vector2(0.0, -90.0)
+	var pts := PackedVector2Array()
+	for i in 49:
+		var a := TAU * float(i) / 48.0
+		pts.append(Vector2(cos(a), sin(a)))
+	_ring.points = pts
+	_ring.visible = false
+	add_child(_ring)
+
+	_ult_bar = Polygon2D.new()
+	_ult_bar.name = "UltBar"
+	_ult_bar.polygon = PackedVector2Array([
+		Vector2(-ULT_BAR_WIDTH * 0.5, -ULT_BAR_HEIGHT * 0.5),
+		Vector2(ULT_BAR_WIDTH * 0.5, -ULT_BAR_HEIGHT * 0.5),
+		Vector2(ULT_BAR_WIDTH * 0.5, ULT_BAR_HEIGHT * 0.5),
+		Vector2(-ULT_BAR_WIDTH * 0.5, ULT_BAR_HEIGHT * 0.5),
+	])
+	_ult_bar.color = Color(1, 1, 1, 0.9)
+	_ult_bar.z_index = ULT_BAR_Z
+	_ult_bar.visible = false
+	add_child(_ult_bar)
+
+	for i in GHOST_POOL:
+		var ghost := Polygon2D.new()
+		ghost.name = "Ghost%d" % i
+		ghost.polygon = PackedVector2Array([
+			Vector2(-20, 0), Vector2(-26, -60), Vector2(-22, -120),
+			Vector2(-8, -165), Vector2(8, -165), Vector2(22, -120),
+			Vector2(26, -60), Vector2(20, 0),
+		])
+		ghost.color = Color(0.62, 0.86, 1.0, 0.38)
+		ghost.z_index = -1
+		ghost.top_level = true       # 残影留在原地，不跟着玩家走
+		ghost.visible = false
+		add_child(ghost)
+		_ghosts.append(ghost)
+
+
+## 逆鳞：以身体为中心的橙色环扩大淡出
+func _play_ring() -> void:
+	_ring.visible = true
+	_ring.modulate = Color(1, 1, 1, 1)
+	_ring.scale = Vector2.ONE * 0.25
+	var tw := _ring.create_tween()
+	tw.set_ignore_time_scale(true)
+	tw.set_parallel(true)
+	tw.tween_property(_ring, "scale", Vector2.ONE * skill2_radius, 0.28)
+	tw.tween_property(_ring, "modulate:a", 0.0, 0.28)
+	tw.set_parallel(false)
+	tw.tween_callback(func() -> void: _ring.visible = false)
+
+
+## 零点：一条压在 HUD 之下的全屏横向白斩
+func _play_ult_bar() -> void:
+	_ult_bar.visible = true
+	_ult_bar.position = Vector2(0.0, -110.0)
+	_ult_bar.modulate = Color(1, 1, 1, 1)
+	_ult_bar.scale = Vector2(0.5, 1.0)
+	var tw := _ult_bar.create_tween()
+	tw.set_ignore_time_scale(true)
+	tw.set_parallel(true)
+	tw.tween_property(_ult_bar, "scale:x", 1.0, 0.18)
+	tw.tween_property(_ult_bar, "modulate:a", 0.0, 0.32).set_delay(0.08)
+	tw.set_parallel(false)
+	tw.tween_callback(func() -> void: _ult_bar.visible = false)
+
+
+## 闪避：3 个残影依次淡出（池复用，不新增节点）；沿反方向错开形成拖尾
+func _spawn_ghosts() -> void:
+	var back := -float(_action_dir)
+	for i in _ghosts.size():
+		var ghost := _ghosts[i]
+		ghost.global_position = global_position + Vector2(back * 34.0 * float(i), 0.0)
+		ghost.scale = Vector2(float(_facing), 1.0)
+		ghost.modulate = Color(1, 1, 1, 1)
+		ghost.visible = true
+		var tw := ghost.create_tween()
+		tw.set_ignore_time_scale(true)
+		tw.tween_property(ghost, "modulate:a", 0.0, GHOST_LIFETIME).set_delay(0.05 * float(i))
+		tw.tween_callback(func() -> void: ghost.visible = false)
 
 
 ## 有正式贴图就用贴图，没有就保留方块占位（美术可以随时换，不用改代码）
@@ -242,6 +345,7 @@ func _load_data() -> void:
 	skill2_knockback = Data.num(s2, "knockback", skill2_knockback)
 	skill2_cooldown = Data.num(s2, "cooldown", skill2_cooldown)
 	skill2_armor = Data.num(s2, "armor_time", skill2_armor)
+	skill2_hitstop = Data.num(s2, "hitstop", skill2_hitstop)
 
 	var ul: Dictionary = d.get("ultimate", {})
 	ult_frames = int(Data.num(ul, "frames", float(ult_frames)))
@@ -254,6 +358,7 @@ func _load_data() -> void:
 	ult_knockback = Data.num(ul, "knockback", ult_knockback)
 	ult_width = Data.num(ul, "width", ult_width)
 	ult_height = Data.num(ul, "height", ult_height)
+	ult_hitstop = Data.num(ul, "hitstop", ult_hitstop)
 
 	_jumps_left = max_jumps
 
@@ -290,7 +395,8 @@ func _physics_process(delta: float) -> void:
 		State.ULTIMATE:
 			_process_ultimate(delta)
 		State.DEAD:
-			pass
+			if Input.is_action_just_pressed("retry"):
+				_retry_now()
 		_:
 			_process_move(delta)
 
@@ -365,8 +471,22 @@ func _die() -> void:
 	state = State.DEAD
 	velocity = Vector2.ZERO
 	visual.modulate = Color(1, 1, 1, 0.25)
-	print("[玩家] 倒下，%.1f 秒后从检查点重生" % respawn_delay)
+	print("[玩家] 倒下，%.1f 秒后从检查点重生（按 R 立即重试）" % respawn_delay)
+	_respawn_seq += 1
+	var seq := _respawn_seq
 	await get_tree().create_timer(respawn_delay).timeout
+	# 等待期间按过 R，或已经被别处复活：这次定时器作废
+	if not _dead or seq != _respawn_seq:
+		return
+	_respawn()
+
+
+## R 键：跳过等待立刻复活（死亡动画期间可用）
+func _retry_now() -> void:
+	if not _dead:
+		return
+	_respawn_seq += 1
+	print("[玩家] 手动重试")
 	_respawn()
 
 
@@ -388,6 +508,8 @@ func _respawn() -> void:
 	_super_armor = 0.0
 	visual.modulate = Color.WHITE
 	_hurt_invuln = 1.0
+	if level != null and level.has_method("on_player_respawn"):
+		level.on_player_respawn(self)
 	print("[玩家] 已重生，HP %.0f" % hp)
 
 
@@ -562,6 +684,7 @@ func _start_dodge(direction: int) -> void:
 	velocity.x = 0.0
 	slash.visible = false
 	_move_remaining = dodge_distance
+	_spawn_ghosts()
 	Audio.play_varied("dodge", -7.0)
 
 
@@ -651,9 +774,9 @@ func _process_skill2(delta: float) -> void:
 		_hit_done = true
 		# 判定帧才消耗冷却：起手被打断不产生伤害，也不该进 CD（PRD 4.3 硬规则 3）
 		skill2_cd = skill2_cooldown
-		_hit_circle(skill2_mult, skill2_knockback, global_position, skill2_radius)
-		Audio.play("hit_heavy", -4.0, 0.9)
-		Fx.impact(14.0)
+		_play_ring()
+		_hit_circle(skill2_mult, skill2_knockback, global_position, skill2_radius, 12,
+				skill2_hitstop)
 
 	slash.visible = in_active
 
@@ -696,10 +819,10 @@ func _process_ultimate(delta: float) -> void:
 		_hit_done = true
 		var bonus := minf(float(combo) * ult_combo_bonus, ult_combo_cap)
 		_ult_mult = ult_mult * (1.0 + bonus)
-		_hit_rect(_ult_mult, ult_knockback, global_position, Vector2(ult_width, ult_height), 64)
+		_play_ult_bar()
+		_hit_rect(_ult_mult, ult_knockback, global_position, Vector2(ult_width, ult_height),
+				64, ult_hitstop)
 		energy = 0.0                   # 判定帧清空能量；放在命中之后，避免把这一刀的 +6 又收回来
-		Audio.play("hit_heavy", -2.0, 0.7)
-		Fx.impact(40.0)
 
 	slash.visible = in_active
 
@@ -734,18 +857,21 @@ func _do_hit(mult: float, knockback: float, offset: Vector2) -> void:
 
 ## 矩形判定：普攻 / 跳攻 / 橙闪 / 零点
 func _hit_rect(mult: float, knockback: float, center: Vector2, size: Vector2,
-		max_targets := 8) -> void:
+		max_targets := 8, hitstop := -1.0) -> void:
 	var targets := _rect.bodies(get_world_2d().direct_space_state, center, size, 2, max_targets)
-	_apply_hits(targets, mult, knockback)
+	_apply_hits(targets, mult, knockback, hitstop)
 
 
 ## 圆形判定：逆鳞（半径 120）
-func _hit_circle(mult: float, knockback: float, center: Vector2, radius: float) -> void:
-	var targets := _rect.circle_bodies(get_world_2d().direct_space_state, center, radius, 2, 12)
-	_apply_hits(targets, mult, knockback)
+func _hit_circle(mult: float, knockback: float, center: Vector2, radius: float,
+		max_targets := 12, hitstop := -1.0) -> void:
+	var targets := _rect.circle_bodies(get_world_2d().direct_space_state, center, radius, 2,
+			max_targets)
+	_apply_hits(targets, mult, knockback, hitstop)
 
 
-func _apply_hits(targets: Array[Node], mult: float, knockback: float) -> void:
+func _apply_hits(targets: Array[Node], mult: float, knockback: float,
+		hitstop := -1.0) -> void:
 	var hit_any := false
 	var biggest := 0.0
 
@@ -772,4 +898,4 @@ func _apply_hits(targets: Array[Node], mult: float, knockback: float) -> void:
 		combo += 1
 		max_combo = maxi(max_combo, combo)
 		_combo_timer = combo_reset_time
-		Fx.impact(biggest)
+		Fx.impact(biggest, true, hitstop)

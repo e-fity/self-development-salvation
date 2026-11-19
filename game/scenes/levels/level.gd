@@ -123,6 +123,18 @@ func add_gold(amount: int) -> void:
 	Audio.play_varied("gold", -10.0, 0.05)
 
 
+## 玩家复活后的收尾：Boss 战阵亡回到门前神龛并回满（R13）
+func on_player_respawn(player: Node) -> void:
+	if not _boss_seen:
+		return
+	if not is_instance_valid(_boss) or bool(_boss.get("_dead")):
+		return
+	player.hp = player.max_hp
+	if "energy" in player:
+		player.energy = player.max_energy
+	print("[神龛] Boss 战阵亡，回到门前神龛并回满")
+
+
 func _show_results() -> void:
 	# 场景已经切走就不要再建结算页（await 期间可能换场景）
 	if not is_inside_tree():
