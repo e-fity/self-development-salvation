@@ -101,8 +101,8 @@ func _show_results() -> void:
 	print("[结算] 用时 %.1fs  受伤 %d  最高连击 %d  金币 %d" % [
 		elapsed, stats["hits"], stats["max_combo"], stats["gold"]])
 
-	# 结算时隐藏战斗 HUD 和调试面板，避免透过结算页
-	for node_name in ["HUD", "DebugPanel"]:
+	# 结算时隐藏战斗 HUD、调试面板和教学提示，避免透过结算页
+	for node_name in ["HUD", "DebugPanel", "Tutorial"]:
 		var n := get_node_or_null(node_name)
 		if n != null:
 			n.visible = false

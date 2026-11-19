@@ -18,7 +18,8 @@ var _player: Node
 func _ready() -> void:
 	layer = 100
 	_build()
-	visible = true
+	# 默认收起：右上角连击数属于战斗信息，别让调试面板长期遮住；F1 打开
+	visible = false
 
 
 func _build() -> void:

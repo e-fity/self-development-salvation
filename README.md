@@ -99,6 +99,16 @@ python tools/check.py --godot  # 追加冒烟测试与 level/title 场景
 
 仓库自带 `.githooks/pre-commit`，启用后每次提交自动跑 `--fast`：`git config core.hooksPath .githooks`。
 
+真窗口自动验收（开窗、注入按键、截图、采帧率，约 40 秒）：
+
+```powershell
+$env:SALVATION_SHOT_DIR = "$PWD\_backup\shots"
+& $godot --path game res://tests/auto_accept.tscn --resolution 1280x720
+echo $LASTEXITCODE    # 0 = 24 项全过；截图与 auto_accept.json 在 $SALVATION_SHOT_DIR
+```
+
+它覆盖按键到起手、三连伤害、闪避位移、L/I 技能、Boss 激活、结算与帧率；听感与手感仍需按[验收清单](docs/验收清单.md)人工确认。
+
 ## 数值调参
 
 所有战斗数值在 `game/data/*.json`，启动时由 `Data` 加载并与内置默认值深合并：
