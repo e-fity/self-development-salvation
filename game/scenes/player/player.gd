@@ -183,7 +183,7 @@ func _build_fx() -> void:
 		Vector2(ULT_BAR_WIDTH * 0.5, ULT_BAR_HEIGHT * 0.5),
 		Vector2(-ULT_BAR_WIDTH * 0.5, ULT_BAR_HEIGHT * 0.5),
 	])
-	_ult_bar.color = Color(1, 1, 1, 0.9)
+	_ult_bar.color = Color(1, 1, 1, 0.55)
 	_ult_bar.z_index = ULT_BAR_Z
 	_ult_bar.visible = false
 	add_child(_ult_bar)
@@ -238,7 +238,7 @@ func _spawn_ghosts() -> void:
 	var back := -float(_action_dir)
 	for i in _ghosts.size():
 		var ghost := _ghosts[i]
-		ghost.global_position = global_position + Vector2(back * 34.0 * float(i), 0.0)
+		ghost.global_position = global_position + Vector2(back * 58.0 * float(i), 0.0)
 		ghost.scale = Vector2(float(_facing), 1.0)
 		ghost.modulate = Color(1, 1, 1, 1)
 		ghost.visible = true
