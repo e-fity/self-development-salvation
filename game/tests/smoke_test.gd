@@ -15,6 +15,7 @@ extends Node2D
 ##   Boss     血量、阶段转换、转换期无敌与锁定出招、判定盒尺寸
 ##   Audio    BGM 走流内循环，不靠 finished 重播
 ##   Debug    无敌 / 冻结 AI / 控制台命令 / 秒杀
+##   Splash   启动页标题与「按任意键」入口
 
 var _passed := 0
 var _failed := 0
@@ -34,6 +35,7 @@ func _ready() -> void:
 	_check_level()
 	await _check_level_resume()
 	await _check_title_continue()
+	await _check_splash()
 	await _check_boss()
 	_check_audio()
 	await _check_debug()
@@ -538,6 +540,23 @@ func _check_title_continue() -> void:
 	title.queue_free()
 	await get_tree().process_frame
 	Save.reset_progress()
+
+
+# ---------------- Splash：启动页 ----------------
+func _check_splash() -> void:
+	print("[Splash] 启动页")
+	var scene: Node = load("res://scenes/ui/splash.tscn").instantiate()
+	add_child(scene)
+	await get_tree().process_frame
+
+	var title: Label = scene.get_node_or_null("TitleMain")
+	var hint: Label = scene.get_node_or_null("Hint")
+	_check(scene.has_method("_go_title"), "启动页有进入入口")
+	_check(title != null and title.text.contains("拯救"), "启动页标题正确")
+	_check(hint != null and hint.text.contains("按任意键"), "启动页有进入提示")
+
+	scene.queue_free()
+	await get_tree().process_frame
 
 
 # ---------------- Audio ----------------

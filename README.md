@@ -1,7 +1,7 @@
 # 自我开发——拯救（Self-Development: Salvation）
 
 2D 横版动作竖切片，Godot 4.7 / GL Compatibility，灰盒 M1（v0.2）。
-可玩流程：标题页（开始 / 继续）→ 关卡（4 只木桩 / 2 个检查点自动存档 / Boss「夜巡」）→ 结算页（S/A/B 评价）→ 重开或回标题。
+可玩流程：启动页（雨幕 / 按任意键进入）→ 标题页（开始 / 继续）→ 关卡（4 只木桩 / 2 个检查点自动存档 / Boss「夜巡」）→ 结算页（S/A/B 评价）→ 重开或回标题。
 
 ![结算页](docs/assets/screenshot_results.png)
 
@@ -18,7 +18,7 @@
 │  │  ├─ enemies/          # enemy_dummy.* / boss.*
 │  │  ├─ combat/           # rect_query.gd（木桩与 Boss 共用的矩形判定）
 │  │  ├─ levels/           # level.tscn + level.gd（唯一关卡）
-│  │  └─ ui/               # title / hud / pause_menu / settings_panel / tutorial / debug_panel / results
+│  │  └─ ui/               # splash / title / hud / pause_menu / settings_panel / tutorial / debug_panel / results
 │  ├─ art/player/          # 本地立绘目录（公开仓库不含；缺失时角色回落为占位图形）
 │  ├─ audio/{bgm,sfx}/     # 占位 BGM / 20 个音效
 │  └─ tests/               # 无界面冒烟测试 smoke_test.tscn
@@ -53,7 +53,7 @@ $env:GODOT_BIN = "C:\path\to\Godot_v4.7.2-stable_win64_console.exe"
 # 1) 首次导入资源（生成 game/.godot 缓存，可随时删除重建）
 & $env:GODOT_BIN --headless --path game --import
 
-# 2) 启动游戏（从标题页开始）
+# 2) 启动游戏（启动页 → 标题页）
 & $env:GODOT_BIN --path game
 
 # 或者用编辑器打开 game/project.godot 后按 F5
@@ -95,7 +95,7 @@ $env:SALVATION_SAVE_DIR = $save                                # 隔离存档，
 echo $LASTEXITCODE    # 0 = 全过，1 = 有失败项
 ```
 
-当前基线：**150 项断言全部通过，退出码 0**。测试会先删掉并重建 `SALVATION_SAVE_DIR` 目录，顺带验证「目录不存在时自动创建」；若该路径不可写，Save 组会失败（属环境问题）。
+当前基线：**153 项断言全部通过，退出码 0**。测试会先删掉并重建 `SALVATION_SAVE_DIR` 目录，顺带验证「目录不存在时自动创建」；若该路径不可写，Save 组会失败（属环境问题）。
 
 一键门禁（静态检查 + 可选 Godot 冒烟）：
 
