@@ -43,6 +43,7 @@ var hurt_knockback := 240.0
 var hurt_invuln_time := 0.5
 var respawn_delay := 1.5
 var combo_reset_time := 3.0
+var attack_move_scale := 0.55   # 收招阶段允许的移动速度比例（R15 手感）
 
 # 能量（PRD 4.5：命中 +6、击杀 +15、受击 −10，上限 100）
 var max_energy := 100.0
@@ -306,6 +307,7 @@ func _load_data() -> void:
 	hurt_invuln_time = Data.num(fb, "hurt_invuln", hurt_invuln_time)
 	respawn_delay = Data.num(fb, "respawn_delay", respawn_delay)
 	combo_reset_time = Data.num(fb, "combo_reset", combo_reset_time)
+	attack_move_scale = Data.num(fb, "attack_move_scale", attack_move_scale)
 	attacks = d.get("attacks", attacks)
 	air_attack = d.get("air_attack", air_attack)
 	max_air_attacks = int(Data.num(air_attack, "max_uses", float(max_air_attacks)))
@@ -587,6 +589,11 @@ func _input_dir() -> int:
 	return signi(int(dir))
 
 
+## 收招阶段的水平速度：按住方向就能以 attack_move_scale 的比例移动（纯函数，便于测试）
+func _recover_vx(axis: float) -> float:
+	return axis * move_speed * attack_move_scale
+
+
 # ---------------- 普攻三连 / 跳攻 ----------------
 func _start_attack(idx: int) -> void:
 	_atk_index = clampi(idx, 0, attacks.size() - 1)
@@ -642,6 +649,22 @@ func _process_attack(delta: float) -> void:
 			and dodge_cd <= 0.0 and is_on_floor():
 		_start_dodge(_input_dir())
 		return
+
+	# 收招阶段保留移动与跳跃：出招后不用「松手再按」，按住方向直接走（R15 手感）
+	if _state_time >= _active_to:
+		var axis := Input.get_axis("move_left", "move_right")
+		velocity.x = _recover_vx(axis) + _knock
+		_knock = move_toward(_knock, 0.0, 900.0 * delta)
+		if not is_zero_approx(axis):
+			_facing = signi(int(axis))
+			visual.scale.x = _facing
+		if is_on_floor() and Input.is_action_just_pressed("jump"):
+			velocity.y = jump_velocity
+			_jumps_left = max_jumps - 1
+			Audio.play_varied("jump", -9.0, 0.04)
+			_end_action()
+			move_and_slide()
+			return
 
 	# 只有地面三连才吃输入缓冲；空中要一按一段
 	if _buffer_attack_if_late():

@@ -95,7 +95,7 @@ $env:SALVATION_SAVE_DIR = $save                                # 隔离存档，
 echo $LASTEXITCODE    # 0 = 全过，1 = 有失败项
 ```
 
-当前基线：**147 项断言全部通过，退出码 0**。测试会先删掉并重建 `SALVATION_SAVE_DIR` 目录，顺带验证「目录不存在时自动创建」；若该路径不可写，Save 组会失败（属环境问题）。
+当前基线：**150 项断言全部通过，退出码 0**。测试会先删掉并重建 `SALVATION_SAVE_DIR` 目录，顺带验证「目录不存在时自动创建」；若该路径不可写，Save 组会失败（属环境问题）。
 
 一键门禁（静态检查 + 可选 Godot 冒烟）：
 
@@ -112,7 +112,7 @@ GitHub Actions 只跑 `python tools/check.py`（静态 12 项，不需要 Godot�
 ```powershell
 $env:SALVATION_SHOT_DIR = "$PWD\_backup\shots"
 & $env:GODOT_BIN --path game res://tests/auto_accept.tscn --resolution 1280x720
-echo $LASTEXITCODE    # 0 = 36 项全过；截图与 auto_accept.json 在 $SALVATION_SHOT_DIR
+echo $LASTEXITCODE    # 0 = 38 项全过；截图与 auto_accept.json 在 $SALVATION_SHOT_DIR
 ```
 
 它覆盖按键到起手、三连伤害、闪避位移与残影、L/I 技能与特效、检查点写档、死亡重试、Boss 激活、结算与帧率；听感与手感仍需按[验收清单](docs/验收清单.md)人工确认。

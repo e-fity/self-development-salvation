@@ -255,6 +255,11 @@ func _check_player() -> void:
 	_check_eq(float(player.skill2_hitstop), 0.04, "逆鳞顿帧取自 player.json")
 	_check_eq(float(player.ult_hitstop), 0.08, "零点顿帧取自 player.json")
 
+	# 收招阶段可直接移动（R15 手感：不用松手再按方向）
+	_check_eq(float(player.attack_move_scale), 0.55, "收招移速比例取自 player.json")
+	_check_eq(float(player._recover_vx(1.0)), 220.0 * 0.55, "收招右移速度 = 移速 × 比例")
+	_check_eq(float(player._recover_vx(0.0)), 0.0, "不收招移动时不漂移")
+
 	# 能量：初始 0、命中 +6、上限 100、受击 −10（PRD 4.5）
 	_check_eq(float(player.energy), 0.0, "初始能量为 0")
 	player.call("_gain_energy", 6.0)
@@ -269,8 +274,11 @@ func _check_player() -> void:
 	player.take_damage(10.0, 1)
 	_check_eq(float(player.hp), float(player.max_hp) - 10.0, "无敌帧内二次受伤被忽略")
 
-	# 等受击无敌结束（真实时间，避开命中停顿的 time_scale=0）
-	await get_tree().create_timer(0.6, true, false, true).timeout
+	# 等受击无敌结束（真实时间，轮询而不是固定等 0.6s，避开命中停顿造成的抖动）
+	var waited := 0.0
+	while float(player.get("_hurt_invuln")) > 0.0 and waited < 2.0:
+		await get_tree().create_timer(0.05, true, false, true).timeout
+		waited += 0.05
 	player.take_damage(10.0, 1)
 	_check_eq(float(player.hp), float(player.max_hp) - 20.0, "无敌结束后可再次受伤")
 

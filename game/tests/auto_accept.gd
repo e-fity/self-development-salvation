@@ -48,6 +48,7 @@ func _run() -> void:
 	await _stage_level()
 	await _stage_latency()
 	await _stage_combo()
+	await _stage_recover_move()
 	await _stage_dodge()
 	await _stage_skills()
 	await _stage_retry()
@@ -115,6 +116,25 @@ func _stage_combo() -> void:
 	combo_damage = hp0 - float(dummy.get("hp"))
 	_check(combo_damage >= 30.0, "三连伤害 ≥30（实测 %.0f）" % combo_damage)
 	_check(player.combo >= 3, "三连后连击数 ≥3（实测 %d）" % player.combo)
+
+func _stage_recover_move() -> void:
+	# R15：起手/判定阶段锁走位，收招阶段按住方向应能直接移动
+	if player == null:
+		return
+	player.global_position = Vector2(1500.0, -10.0)
+	player.velocity = Vector2.ZERO
+	player.set("_facing", 1)
+	await _wait(0.35)
+	var x0: float = player.global_position.x
+	_tap("attack")
+	Input.action_press("move_right")
+	await _wait(0.16)
+	var locked: float = player.global_position.x - x0
+	await _wait(0.30)
+	var moved: float = player.global_position.x - x0
+	Input.action_release("move_right")
+	_check(locked <= 8.0, "出招起手/判定期不走位（实测 %.1f px）" % locked)
+	_check(moved >= 12.0, "收招期按住方向可移动（实测 %.1f px）" % moved)
 
 func _stage_dodge() -> void:
 	if player == null:

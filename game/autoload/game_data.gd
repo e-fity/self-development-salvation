@@ -20,7 +20,7 @@ const DEFAULT_PLAYER := {
 		"max_jumps": 2, "second_jump_scale": 0.8},
 	"combo_grace": 0.45,
 	"feedback": {"hurt_knockback": 240.0, "hurt_invuln": 0.5,
-		"respawn_delay": 1.5, "combo_reset": 3.0},
+		"respawn_delay": 1.5, "combo_reset": 3.0, "attack_move_scale": 0.55},
 	"energy": {"max": 100.0, "on_hit": 6.0, "on_kill": 15.0, "on_damage": 10.0},
 	"skill2": {"frames": 10, "startup": 3, "active": 1, "recover": 6,
 		"radius": 120.0, "mult": 1.2, "knockback": 120.0,

@@ -18,7 +18,8 @@
     "hurt_knockback": 240.0,
     "hurt_invuln": 0.5,
     "respawn_delay": 1.5,
-    "combo_reset": 3.0
+    "combo_reset": 3.0,
+    "attack_move_scale": 0.55
   },
   "energy": {
     "max": 100.0,
